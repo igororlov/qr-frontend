@@ -1,8 +1,15 @@
 import { apiRequest } from './client'
-import type { PublicQr, QrCode } from '../types/qr'
+import type { PublicQr, QrCode, QrCodeInput } from '../types/qr'
 
 export function listQrCodes(companyId: string) {
   return apiRequest<QrCode[]>(`/api/companies/${companyId}/qr-codes`)
+}
+
+export function updateQrCode(companyId: string, qrCodeId: string, body: QrCodeInput) {
+  return apiRequest<QrCode>(`/api/companies/${companyId}/qr-codes/${qrCodeId}`, {
+    method: 'PUT',
+    body,
+  })
 }
 
 export function getPublicQr(slug: string) {

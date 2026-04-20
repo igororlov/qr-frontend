@@ -1,7 +1,13 @@
+import AddIcon from '@mui/icons-material/Add'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
+import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
+import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
+import DeleteIcon from '@mui/icons-material/Delete'
+import EditIcon from '@mui/icons-material/Edit'
 import LaunchIcon from '@mui/icons-material/Launch'
 import QrCode2Icon from '@mui/icons-material/QrCode2'
-import { useQuery } from '@tanstack/react-query'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
   Box,
@@ -10,15 +16,59 @@ import {
   CardContent,
   Chip,
   CircularProgress,
+  Dialog,
+  DialogActions,
+  DialogContent,
+  DialogTitle,
+  FormControl,
+  FormControlLabel,
   Grid,
+  IconButton,
+  InputLabel,
+  MenuItem,
+  Select,
   Stack,
+  Switch,
+  TextField,
+  Tooltip,
   Typography,
 } from '@mui/material'
+import { useEffect, useState } from 'react'
+import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import { Link as RouterLink, useParams } from 'react-router-dom'
-import { listQrCodes } from '../api/qrApi'
+import { z } from 'zod'
+import { listQrCodes, updateQrCode } from '../api/qrApi'
+import { useI18n } from '../i18n/I18nContext'
+import type { QrActionType, QrCode, QrCodeInput } from '../types/qr'
+
+const actionTypes = ['LINK', 'GOOGLE_REVIEW', 'PHONE', 'SMS', 'EMAIL', 'FORM'] as const
+
+const qrFormSchema = z.object({
+  slug: z.string().regex(/^[a-z0-9-]{3,120}$/, 'Use 3-120 lowercase letters, numbers, or hyphens'),
+  title: z.string().min(1, 'Title is required').max(160),
+  subtitle: z.string().max(240).optional(),
+  label: z.string().max(120).optional(),
+  logoUrl: z.union([z.string().url('Use a valid URL'), z.literal('')]).optional(),
+  active: z.boolean(),
+  actions: z
+    .array(
+      z.object({
+        label: z.string().min(1, 'Label is required').max(120),
+        type: z.enum(actionTypes),
+        value: z.string().min(1, 'Value is required').max(2000),
+        active: z.boolean(),
+      }),
+    )
+    .min(1, 'Add at least one action')
+    .max(10, 'Use no more than 10 actions'),
+})
+
+type QrFormValues = z.infer<typeof qrFormSchema>
 
 export function QrCodesPage() {
+  const { t } = useI18n()
   const { companyId } = useParams()
+  const [editingQr, setEditingQr] = useState<QrCode | null>(null)
   const qrCodesQuery = useQuery({
     queryKey: ['qr-codes', companyId],
     queryFn: () => listQrCodes(companyId!),
@@ -30,18 +80,18 @@ export function QrCodesPage() {
       <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ justifyContent: 'space-between' }}>
         <Box>
           <Button component={RouterLink} to="/companies" startIcon={<ArrowBackIcon />} sx={{ mb: 1 }}>
-            Companies
+            {t('companies.title')}
           </Button>
-          <Typography variant="h1">QR pages</Typography>
-          <Typography color="text.secondary">Review published QR destinations and action buttons</Typography>
+          <Typography variant="h1">{t('qr.title')}</Typography>
+          <Typography color="text.secondary">{t('qr.subtitle')}</Typography>
         </Box>
         <Button variant="contained" disabled>
-          New QR page
+          {t('qr.newPage')}
         </Button>
       </Stack>
 
       {qrCodesQuery.isLoading && <CircularProgress />}
-      {qrCodesQuery.isError && <Alert severity="error">Could not load QR pages</Alert>}
+      {qrCodesQuery.isError && <Alert severity="error">{t('qr.couldNotLoad')}</Alert>}
 
       <Grid container spacing={2}>
         {qrCodesQuery.data?.map((qr) => (
@@ -55,31 +105,395 @@ export function QrCodesPage() {
                       <Typography variant="h3">{qr.title}</Typography>
                       <Typography color="text.secondary">/q/{qr.slug}</Typography>
                     </Box>
-                    <Chip label={qr.active ? 'Active' : 'Inactive'} color={qr.active ? 'success' : 'default'} />
+                    <Chip label={qr.active ? t('common.active') : t('common.inactive')} color={qr.active ? 'success' : 'default'} />
                   </Stack>
                   {qr.subtitle && <Typography color="text.secondary">{qr.subtitle}</Typography>}
-                  <Typography color="text.secondary">{qr.actions.length} actions · {qr.scanCount} scans</Typography>
-                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+                  <Typography color="text.secondary">
+                    {t('qr.actionsCount', { actions: qr.actions.length, scans: qr.scanCount })}
+                  </Typography>
+                  <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
                     {qr.actions.map((action) => (
-                      <Chip key={action.id} label={`${action.position}. ${action.label}`} variant="outlined" />
+                      <Chip
+                        key={action.id}
+                        label={`${action.position}. ${action.label} · ${actionTypeLabel(action.type, t)}`}
+                        variant="outlined"
+                      />
                     ))}
                   </Stack>
-                  <Button
-                    component={RouterLink}
-                    to={`/q/${qr.slug}`}
-                    target="_blank"
-                    rel="noreferrer"
-                    startIcon={<LaunchIcon />}
-                    variant="outlined"
-                  >
-                    Open public page
-                  </Button>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button startIcon={<EditIcon />} variant="contained" onClick={() => setEditingQr(qr)}>
+                      {t('action.edit')}
+                    </Button>
+                    <Button
+                      component={RouterLink}
+                      to={`/q/${qr.slug}`}
+                      target="_blank"
+                      rel="noreferrer"
+                      startIcon={<LaunchIcon />}
+                      variant="outlined"
+                    >
+                      {t('action.openPublicPage')}
+                    </Button>
+                  </Stack>
                 </Stack>
               </CardContent>
             </Card>
           </Grid>
         ))}
       </Grid>
+
+      {companyId && (
+        <QrEditDialog
+          companyId={companyId}
+          qr={editingQr}
+          onClose={() => setEditingQr(null)}
+        />
+      )}
     </Stack>
   )
+}
+
+function QrEditDialog({ companyId, qr, onClose }: { companyId: string; qr: QrCode | null; onClose: () => void }) {
+  const { t } = useI18n()
+  const queryClient = useQueryClient()
+  const { control, handleSubmit, reset, formState } = useForm<QrFormValues>({
+    resolver: zodResolver(qrFormSchema),
+    defaultValues: emptyQrForm(),
+  })
+  const { fields, append, remove, move } = useFieldArray({
+    control,
+    name: 'actions',
+  })
+
+  useEffect(() => {
+    if (qr) {
+      reset(toFormValues(qr))
+    }
+  }, [qr, reset])
+
+  const updateMutation = useMutation({
+    mutationFn: (values: QrFormValues) => updateQrCode(companyId, qr!.id, toRequest(values)),
+    onSuccess: async (updated) => {
+      await queryClient.invalidateQueries({ queryKey: ['qr-codes', companyId] })
+      await queryClient.invalidateQueries({ queryKey: ['public-qr', updated.slug] })
+      onClose()
+    },
+  })
+
+  async function onSubmit(values: QrFormValues) {
+    await updateMutation.mutateAsync(values)
+  }
+
+  return (
+    <Dialog open={Boolean(qr)} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>{t('qr.editTitle')}</DialogTitle>
+      <Box component="form" onSubmit={handleSubmit(onSubmit)}>
+        <DialogContent dividers>
+          <Stack spacing={3}>
+            {updateMutation.isError && <Alert severity="error">{t('qr.couldNotSave')}</Alert>}
+
+            <Grid container spacing={2}>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Controller
+                  name="title"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <TextField
+                      {...field}
+                      label={t('qr.titleField')}
+                      error={Boolean(fieldState.error)}
+                      helperText={fieldState.error?.message}
+                      fullWidth
+                    />
+                  )}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Controller
+                  name="slug"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <TextField
+                      {...field}
+                      label={t('common.slug')}
+                      error={Boolean(fieldState.error)}
+                      helperText={fieldState.error?.message ?? t('qr.publicUrlHelp')}
+                      fullWidth
+                    />
+                  )}
+                />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <Controller
+                  name="subtitle"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <TextField
+                      {...field}
+                      label={t('qr.subtitleField')}
+                      error={Boolean(fieldState.error)}
+                      helperText={fieldState.error?.message}
+                      fullWidth
+                    />
+                  )}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Controller
+                  name="label"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <TextField
+                      {...field}
+                      label={t('qr.imageLabel')}
+                      error={Boolean(fieldState.error)}
+                      helperText={fieldState.error?.message}
+                      fullWidth
+                    />
+                  )}
+                />
+              </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Controller
+                  name="logoUrl"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <TextField
+                      {...field}
+                      label={t('common.logoUrl')}
+                      error={Boolean(fieldState.error)}
+                      helperText={fieldState.error?.message}
+                      fullWidth
+                    />
+                  )}
+                />
+              </Grid>
+              <Grid size={{ xs: 12 }}>
+                <Controller
+                  name="active"
+                  control={control}
+                  render={({ field }) => (
+                    <FormControlLabel
+                      control={<Switch checked={field.value} onChange={(_, checked) => field.onChange(checked)} />}
+                      label={t('common.published')}
+                    />
+                  )}
+                />
+              </Grid>
+            </Grid>
+
+            <Stack spacing={1.5}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'space-between' }}>
+                <Box>
+                  <Typography variant="h3">{t('qr.actionsTitle')}</Typography>
+                  <Typography color="text.secondary">{t('qr.actionsHelp')}</Typography>
+                </Box>
+                <Button
+                  startIcon={<AddIcon />}
+                  variant="outlined"
+                  disabled={fields.length >= 10}
+                  onClick={() => append(defaultAction(t))}
+                >
+                  {t('action.addAction')}
+                </Button>
+              </Stack>
+
+              {typeof formState.errors.actions?.message === 'string' && (
+                <Alert severity="error">{formState.errors.actions.message}</Alert>
+              )}
+
+              <Stack spacing={1.5}>
+                {fields.map((field, index) => (
+                  <Box
+                    key={field.id}
+                    sx={{
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      borderRadius: 1,
+                      p: 2,
+                    }}
+                  >
+                    <Grid container spacing={2} sx={{ alignItems: 'center' }}>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Controller
+                          name={`actions.${index}.label`}
+                          control={control}
+                          render={({ field, fieldState }) => (
+                            <TextField
+                              {...field}
+                              label={t('action.buttonLabel')}
+                              error={Boolean(fieldState.error)}
+                              helperText={fieldState.error?.message}
+                              fullWidth
+                            />
+                          )}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 3 }}>
+                        <Controller
+                          name={`actions.${index}.type`}
+                          control={control}
+                          render={({ field }) => (
+                            <FormControl fullWidth>
+                              <InputLabel id={`action-type-${index}`}>{t('qr.type')}</InputLabel>
+                              <Select {...field} labelId={`action-type-${index}`} label={t('qr.type')}>
+                                {actionTypes.map((type) => (
+                                  <MenuItem key={type} value={type}>
+                                    {actionTypeLabel(type, t)}
+                                  </MenuItem>
+                                ))}
+                              </Select>
+                            </FormControl>
+                          )}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 4 }}>
+                        <Controller
+                          name={`actions.${index}.value`}
+                          control={control}
+                          render={({ field, fieldState }) => (
+                            <TextField
+                              {...field}
+                              label={t('qr.value')}
+                              placeholder={t('qr.valuePlaceholder')}
+                              error={Boolean(fieldState.error)}
+                              helperText={fieldState.error?.message ?? t('qr.formKeyHelp')}
+                              fullWidth
+                            />
+                          )}
+                        />
+                      </Grid>
+                      <Grid size={{ xs: 12, md: 2 }}>
+                        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'flex-end' }}>
+                          <Controller
+                            name={`actions.${index}.active`}
+                            control={control}
+                            render={({ field }) => (
+                              <Switch checked={field.value} onChange={(_, checked) => field.onChange(checked)} />
+                            )}
+                          />
+                          <Tooltip title={t('action.moveUp')}>
+                            <span>
+                              <IconButton size="small" disabled={index === 0} onClick={() => move(index, index - 1)}>
+                                <ArrowUpwardIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                          <Tooltip title={t('action.moveDown')}>
+                            <span>
+                              <IconButton
+                                size="small"
+                                disabled={index === fields.length - 1}
+                                onClick={() => move(index, index + 1)}
+                              >
+                                <ArrowDownwardIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                          <Tooltip title={t('action.remove')}>
+                            <span>
+                              <IconButton size="small" disabled={fields.length <= 1} onClick={() => remove(index)}>
+                                <DeleteIcon fontSize="small" />
+                              </IconButton>
+                            </span>
+                          </Tooltip>
+                        </Stack>
+                      </Grid>
+                    </Grid>
+                  </Box>
+                ))}
+              </Stack>
+            </Stack>
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>{t('common.cancel')}</Button>
+          <Button type="submit" variant="contained" disabled={formState.isSubmitting || updateMutation.isPending}>
+            {t('action.saveChanges')}
+          </Button>
+        </DialogActions>
+      </Box>
+    </Dialog>
+  )
+}
+
+function toFormValues(qr: QrCode): QrFormValues {
+  return {
+    slug: qr.slug,
+    title: qr.title,
+    subtitle: qr.subtitle ?? '',
+    label: qr.label ?? '',
+    logoUrl: qr.logoUrl ?? '',
+    active: qr.active,
+    actions: qr.actions
+      .slice()
+      .sort((a, b) => a.position - b.position)
+      .map((action) => ({
+        label: action.label,
+        type: action.type,
+        value: action.value,
+        active: action.active,
+      })),
+  }
+}
+
+function toRequest(values: QrFormValues): QrCodeInput {
+  return {
+    slug: values.slug.trim(),
+    title: values.title.trim(),
+    subtitle: emptyToNull(values.subtitle),
+    label: emptyToNull(values.label),
+    logoUrl: emptyToNull(values.logoUrl),
+    active: values.active,
+    actions: values.actions.map((action, index) => ({
+      position: index + 1,
+      label: action.label.trim(),
+      type: action.type,
+      value: action.value.trim(),
+      active: action.active,
+    })),
+  }
+}
+
+function emptyQrForm(): QrFormValues {
+  return {
+    slug: '',
+    title: '',
+    subtitle: '',
+    label: '',
+    logoUrl: '',
+    active: true,
+    actions: [defaultAction(() => 'Open link')],
+  }
+}
+
+function defaultAction(t: (key: string) => string): QrFormValues['actions'][number] {
+  return {
+    label: t('action.defaultLabel'),
+    type: 'LINK',
+    value: 'https://example.com',
+    active: true,
+  }
+}
+
+function actionTypeLabel(type: QrActionType, t: (key: string) => string) {
+  switch (type) {
+    case 'LINK':
+      return t('actionType.link')
+    case 'GOOGLE_REVIEW':
+      return t('actionType.googleReview')
+    case 'PHONE':
+      return t('actionType.phone')
+    case 'SMS':
+      return t('actionType.sms')
+    case 'EMAIL':
+      return t('actionType.email')
+    case 'FORM':
+      return t('actionType.form')
+  }
+}
+
+function emptyToNull(value?: string) {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
 }

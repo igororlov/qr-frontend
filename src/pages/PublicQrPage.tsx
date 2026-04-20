@@ -24,6 +24,8 @@ import { useParams } from 'react-router-dom'
 import { z } from 'zod'
 import type { ReactNode } from 'react'
 import { getPublicQr, submitPublicForm, trackPublicAction } from '../api/qrApi'
+import { LanguageSelect } from '../components/LanguageSelect'
+import { useI18n } from '../i18n/I18nContext'
 import type { PublicQrAction, QrActionType } from '../types/qr'
 
 const formSchema = z.object({
@@ -36,6 +38,7 @@ const formSchema = z.object({
 type FormValues = z.infer<typeof formSchema>
 
 export function PublicQrPage() {
+  const { t } = useI18n()
   const { slug } = useParams()
   const qrQuery = useQuery({
     queryKey: ['public-qr', slug],
@@ -72,7 +75,7 @@ export function PublicQrPage() {
       <PublicShell>
         <Stack spacing={2} sx={{ alignItems: 'center' }}>
           <CircularProgress />
-          <Typography color="text.secondary">Opening QR page</Typography>
+          <Typography color="text.secondary">{t('public.loading')}</Typography>
         </Stack>
       </PublicShell>
     )
@@ -81,7 +84,7 @@ export function PublicQrPage() {
   if (qrQuery.isError || !qrQuery.data) {
     return (
       <PublicShell>
-        <Alert severity="error">This QR page is unavailable.</Alert>
+        <Alert severity="error">{t('public.unavailable')}</Alert>
       </PublicShell>
     )
   }
@@ -142,12 +145,12 @@ export function PublicQrPage() {
             <Box component="form" onSubmit={handleSubmit(onSubmit)}>
               <Stack spacing={2}>
                 <Typography variant="h3">{formAction.label}</Typography>
-                {formMutation.isSuccess && <Alert severity="success">Message sent.</Alert>}
-                {formMutation.isError && <Alert severity="error">Could not send the message.</Alert>}
+                {formMutation.isSuccess && <Alert severity="success">{t('public.sent')}</Alert>}
+                {formMutation.isError && <Alert severity="error">{t('public.couldNotSend')}</Alert>}
                 <Controller
                   name="senderName"
                   control={control}
-                  render={({ field }) => <TextField {...field} label="Name" fullWidth />}
+                  render={({ field }) => <TextField {...field} label={t('public.name')} fullWidth />}
                 />
                 <Controller
                   name="senderEmail"
@@ -155,7 +158,7 @@ export function PublicQrPage() {
                   render={({ field, fieldState }) => (
                     <TextField
                       {...field}
-                      label="Email"
+                      label={t('public.email')}
                       type="email"
                       error={Boolean(fieldState.error)}
                       helperText={fieldState.error?.message}
@@ -166,7 +169,7 @@ export function PublicQrPage() {
                 <Controller
                   name="senderPhone"
                   control={control}
-                  render={({ field }) => <TextField {...field} label="Phone" fullWidth />}
+                  render={({ field }) => <TextField {...field} label={t('public.phone')} fullWidth />}
                 />
                 <Controller
                   name="message"
@@ -174,7 +177,7 @@ export function PublicQrPage() {
                   render={({ field, fieldState }) => (
                     <TextField
                       {...field}
-                      label="Message"
+                      label={t('public.message')}
                       multiline
                       minRows={4}
                       error={Boolean(fieldState.error)}
@@ -190,7 +193,7 @@ export function PublicQrPage() {
                   startIcon={<SendIcon />}
                   disabled={formState.isSubmitting || formMutation.isPending}
                 >
-                  Send message
+                  {t('public.send')}
                 </Button>
               </Stack>
             </Box>
@@ -210,7 +213,12 @@ function PublicShell({ children }: { children: ReactNode }) {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: { xs: 2, sm: 5 } }}>
       <Container maxWidth="xs">
         <Paper variant="outlined" sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2 }}>
-          {children}
+          <Stack spacing={2}>
+            <Box sx={{ alignSelf: 'flex-end' }}>
+              <LanguageSelect compact />
+            </Box>
+            {children}
+          </Stack>
         </Paper>
       </Container>
     </Box>

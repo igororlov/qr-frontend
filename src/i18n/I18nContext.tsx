@@ -1,0 +1,368 @@
+import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
+
+export type Language = 'en' | 'no' | 'ru'
+
+type Dictionary = Record<string, string>
+
+const LANGUAGE_KEY = 'qr_language'
+
+const languages: Array<{ code: Language; label: string }> = [
+  { code: 'en', label: 'English' },
+  { code: 'no', label: 'Norsk' },
+  { code: 'ru', label: 'Русский' },
+]
+
+const dictionaries: Record<Language, Dictionary> = {
+  en: {
+    'action.addAction': 'Add action',
+    'action.buttonLabel': 'Button label',
+    'action.defaultLabel': 'Open link',
+    'action.delete': 'Delete',
+    'action.edit': 'Edit',
+    'action.moveDown': 'Move down',
+    'action.moveUp': 'Move up',
+    'action.openPublicPage': 'Open public page',
+    'action.remove': 'Remove',
+    'action.save': 'Save',
+    'action.saveChanges': 'Save changes',
+    'action.signOut': 'Sign out',
+    'actionType.email': 'Email',
+    'actionType.form': 'Form',
+    'actionType.googleReview': 'Google review',
+    'actionType.link': 'Link',
+    'actionType.phone': 'Phone',
+    'actionType.sms': 'SMS',
+    'common.active': 'Active',
+    'common.cancel': 'Cancel',
+    'common.email': 'Email',
+    'common.inactive': 'Inactive',
+    'common.language': 'Language',
+    'common.logoUrl': 'Logo URL',
+    'common.owner': 'Owner',
+    'common.password': 'Password',
+    'common.published': 'Published',
+    'common.role': 'Role',
+    'common.slug': 'Slug',
+    'companies.couldNotDelete': 'Could not delete company',
+    'companies.couldNotLoad': 'Could not load companies',
+    'companies.couldNotSave': 'Could not save company',
+    'companies.deleteConfirm': 'Delete {{name}}?',
+    'companies.deleteTitle': 'Delete company',
+    'companies.deleteWarning': 'This will delete the company and its QR pages.',
+    'companies.editTitle': 'Edit company',
+    'companies.name': 'Company name',
+    'companies.newAccount': 'New account',
+    'companies.newCompany': 'New company',
+    'companies.openQrPages': 'Open QR pages',
+    'companies.ownerPrefix': 'Owner: {{email}}',
+    'companies.qrPages': 'QR pages',
+    'companies.slugHelp': 'Lowercase public identifier',
+    'companies.subtitle': 'Choose a company to manage its QR pages',
+    'companies.title': 'Companies',
+    'login.invalidCredentials': 'Invalid email or password',
+    'login.loginFailed': 'Login failed',
+    'login.subtitle': 'Manage companies and QR pages',
+    'login.title': 'Sign in',
+    'login.submit': 'Sign in',
+    'login.submitting': 'Signing in',
+    'notFound.button': 'Go to companies',
+    'notFound.subtitle': 'The page is unavailable.',
+    'notFound.title': 'Page not found',
+    'public.couldNotSend': 'Could not send the message.',
+    'public.email': 'Email',
+    'public.loading': 'Opening QR page',
+    'public.message': 'Message',
+    'public.messageRequired': 'Message is required',
+    'public.name': 'Name',
+    'public.phone': 'Phone',
+    'public.send': 'Send message',
+    'public.sent': 'Message sent.',
+    'public.unavailable': 'This QR page is unavailable.',
+    'qr.actionsCount': '{{actions}} actions · {{scans}} scans',
+    'qr.actionsHelp': 'Set the buttons and form entry points for the public QR page',
+    'qr.actionsTitle': 'Actions',
+    'qr.addAtLeastOneAction': 'Add at least one action',
+    'qr.couldNotLoad': 'Could not load QR pages',
+    'qr.couldNotSave': 'Could not save QR page',
+    'qr.editTitle': 'Edit QR page',
+    'qr.formKeyHelp': 'Example: https://..., +34123456789, hello@example.com',
+    'qr.imageLabel': 'QR image label',
+    'qr.labelRequired': 'Label is required',
+    'qr.newPage': 'New QR page',
+    'qr.publicUrlHelp': 'Public URL: /q/your-slug',
+    'qr.subtitle': 'Review published QR destinations and action buttons',
+    'qr.subtitleField': 'Subtitle',
+    'qr.title': 'QR pages',
+    'qr.titleField': 'Title',
+    'qr.type': 'Type',
+    'qr.useNoMoreThanTenActions': 'Use no more than 10 actions',
+    'qr.value': 'Value or metadata',
+    'qr.valuePlaceholder': 'URL, phone, email, or form key',
+    'qr.valueRequired': 'Value is required',
+    'role.companyAdmin': 'Company admin',
+    'role.systemAdmin': 'System admin',
+    'user.couldNotCreate': 'Could not create account',
+    'user.createAccount': 'Create account',
+    'user.fullName': 'Full name',
+    'user.newAccount': 'New account',
+    'user.temporaryPassword': 'Temporary password',
+  },
+  no: {
+    'action.addAction': 'Legg til handling',
+    'action.buttonLabel': 'Knappetekst',
+    'action.defaultLabel': 'Åpne lenke',
+    'action.delete': 'Slett',
+    'action.edit': 'Rediger',
+    'action.moveDown': 'Flytt ned',
+    'action.moveUp': 'Flytt opp',
+    'action.openPublicPage': 'Åpne offentlig side',
+    'action.remove': 'Fjern',
+    'action.save': 'Lagre',
+    'action.saveChanges': 'Lagre endringer',
+    'action.signOut': 'Logg ut',
+    'actionType.email': 'E-post',
+    'actionType.form': 'Skjema',
+    'actionType.googleReview': 'Google-anmeldelse',
+    'actionType.link': 'Lenke',
+    'actionType.phone': 'Telefon',
+    'actionType.sms': 'SMS',
+    'common.active': 'Aktiv',
+    'common.cancel': 'Avbryt',
+    'common.email': 'E-post',
+    'common.inactive': 'Inaktiv',
+    'common.language': 'Språk',
+    'common.logoUrl': 'Logo-URL',
+    'common.owner': 'Eier',
+    'common.password': 'Passord',
+    'common.published': 'Publisert',
+    'common.role': 'Rolle',
+    'common.slug': 'Slug',
+    'companies.couldNotDelete': 'Kunne ikke slette firma',
+    'companies.couldNotLoad': 'Kunne ikke laste firmaer',
+    'companies.couldNotSave': 'Kunne ikke lagre firma',
+    'companies.deleteConfirm': 'Slette {{name}}?',
+    'companies.deleteTitle': 'Slett firma',
+    'companies.deleteWarning': 'Dette sletter firmaet og QR-sidene.',
+    'companies.editTitle': 'Rediger firma',
+    'companies.name': 'Firmanavn',
+    'companies.newAccount': 'Ny konto',
+    'companies.newCompany': 'Nytt firma',
+    'companies.openQrPages': 'Åpne QR-sider',
+    'companies.ownerPrefix': 'Eier: {{email}}',
+    'companies.qrPages': 'QR-sider',
+    'companies.slugHelp': 'Offentlig identifikator med små bokstaver',
+    'companies.subtitle': 'Velg et firma for å administrere QR-sidene',
+    'companies.title': 'Firmaer',
+    'login.invalidCredentials': 'Ugyldig e-post eller passord',
+    'login.loginFailed': 'Innlogging feilet',
+    'login.subtitle': 'Administrer firmaer og QR-sider',
+    'login.title': 'Logg inn',
+    'login.submit': 'Logg inn',
+    'login.submitting': 'Logger inn',
+    'notFound.button': 'Gå til firmaer',
+    'notFound.subtitle': 'Siden er ikke tilgjengelig.',
+    'notFound.title': 'Fant ikke siden',
+    'public.couldNotSend': 'Kunne ikke sende meldingen.',
+    'public.email': 'E-post',
+    'public.loading': 'Åpner QR-side',
+    'public.message': 'Melding',
+    'public.messageRequired': 'Melding er påkrevd',
+    'public.name': 'Navn',
+    'public.phone': 'Telefon',
+    'public.send': 'Send melding',
+    'public.sent': 'Melding sendt.',
+    'public.unavailable': 'Denne QR-siden er ikke tilgjengelig.',
+    'qr.actionsCount': '{{actions}} handlinger · {{scans}} skanninger',
+    'qr.actionsHelp': 'Sett opp knappene og skjemaet for den offentlige QR-siden',
+    'qr.actionsTitle': 'Handlinger',
+    'qr.addAtLeastOneAction': 'Legg til minst én handling',
+    'qr.couldNotLoad': 'Kunne ikke laste QR-sider',
+    'qr.couldNotSave': 'Kunne ikke lagre QR-side',
+    'qr.editTitle': 'Rediger QR-side',
+    'qr.formKeyHelp': 'Eksempel: https://..., +34123456789, hello@example.com',
+    'qr.imageLabel': 'QR-bildetekst',
+    'qr.labelRequired': 'Tekst er påkrevd',
+    'qr.newPage': 'Ny QR-side',
+    'qr.publicUrlHelp': 'Offentlig URL: /q/din-slug',
+    'qr.subtitle': 'Se publiserte QR-mål og handlingsknapper',
+    'qr.subtitleField': 'Undertittel',
+    'qr.title': 'QR-sider',
+    'qr.titleField': 'Tittel',
+    'qr.type': 'Type',
+    'qr.useNoMoreThanTenActions': 'Bruk maks 10 handlinger',
+    'qr.value': 'Verdi eller metadata',
+    'qr.valuePlaceholder': 'URL, telefon, e-post eller skjemanøkkel',
+    'qr.valueRequired': 'Verdi er påkrevd',
+    'role.companyAdmin': 'Firmaadministrator',
+    'role.systemAdmin': 'Systemadministrator',
+    'user.couldNotCreate': 'Kunne ikke opprette konto',
+    'user.createAccount': 'Opprett konto',
+    'user.fullName': 'Fullt navn',
+    'user.newAccount': 'Ny konto',
+    'user.temporaryPassword': 'Midlertidig passord',
+  },
+  ru: {
+    'action.addAction': 'Добавить действие',
+    'action.buttonLabel': 'Текст кнопки',
+    'action.defaultLabel': 'Открыть ссылку',
+    'action.delete': 'Удалить',
+    'action.edit': 'Редактировать',
+    'action.moveDown': 'Переместить вниз',
+    'action.moveUp': 'Переместить вверх',
+    'action.openPublicPage': 'Открыть публичную страницу',
+    'action.remove': 'Удалить',
+    'action.save': 'Сохранить',
+    'action.saveChanges': 'Сохранить изменения',
+    'action.signOut': 'Выйти',
+    'actionType.email': 'Email',
+    'actionType.form': 'Форма',
+    'actionType.googleReview': 'Отзыв Google',
+    'actionType.link': 'Ссылка',
+    'actionType.phone': 'Телефон',
+    'actionType.sms': 'SMS',
+    'common.active': 'Активна',
+    'common.cancel': 'Отмена',
+    'common.email': 'Email',
+    'common.inactive': 'Неактивна',
+    'common.language': 'Язык',
+    'common.logoUrl': 'URL логотипа',
+    'common.owner': 'Владелец',
+    'common.password': 'Пароль',
+    'common.published': 'Опубликовано',
+    'common.role': 'Роль',
+    'common.slug': 'Slug',
+    'companies.couldNotDelete': 'Не удалось удалить компанию',
+    'companies.couldNotLoad': 'Не удалось загрузить компании',
+    'companies.couldNotSave': 'Не удалось сохранить компанию',
+    'companies.deleteConfirm': 'Удалить {{name}}?',
+    'companies.deleteTitle': 'Удалить компанию',
+    'companies.deleteWarning': 'Компания и её QR-страницы будут удалены.',
+    'companies.editTitle': 'Редактировать компанию',
+    'companies.name': 'Название компании',
+    'companies.newAccount': 'Новый аккаунт',
+    'companies.newCompany': 'Новая компания',
+    'companies.openQrPages': 'Открыть QR-страницы',
+    'companies.ownerPrefix': 'Владелец: {{email}}',
+    'companies.qrPages': 'QR-страницы',
+    'companies.slugHelp': 'Публичный идентификатор строчными буквами',
+    'companies.subtitle': 'Выберите компанию, чтобы управлять её QR-страницами',
+    'companies.title': 'Компании',
+    'login.invalidCredentials': 'Неверный email или пароль',
+    'login.loginFailed': 'Не удалось войти',
+    'login.subtitle': 'Управление компаниями и QR-страницами',
+    'login.title': 'Вход',
+    'login.submit': 'Войти',
+    'login.submitting': 'Входим',
+    'notFound.button': 'К компаниям',
+    'notFound.subtitle': 'Страница недоступна.',
+    'notFound.title': 'Страница не найдена',
+    'public.couldNotSend': 'Не удалось отправить сообщение.',
+    'public.email': 'Email',
+    'public.loading': 'Открываем QR-страницу',
+    'public.message': 'Сообщение',
+    'public.messageRequired': 'Сообщение обязательно',
+    'public.name': 'Имя',
+    'public.phone': 'Телефон',
+    'public.send': 'Отправить сообщение',
+    'public.sent': 'Сообщение отправлено.',
+    'public.unavailable': 'Эта QR-страница недоступна.',
+    'qr.actionsCount': '{{actions}} действий · {{scans}} сканов',
+    'qr.actionsHelp': 'Настройте кнопки и форму для публичной QR-страницы',
+    'qr.actionsTitle': 'Действия',
+    'qr.addAtLeastOneAction': 'Добавьте хотя бы одно действие',
+    'qr.couldNotLoad': 'Не удалось загрузить QR-страницы',
+    'qr.couldNotSave': 'Не удалось сохранить QR-страницу',
+    'qr.editTitle': 'Редактировать QR-страницу',
+    'qr.formKeyHelp': 'Например: https://..., +34123456789, hello@example.com',
+    'qr.imageLabel': 'Подпись QR-картинки',
+    'qr.labelRequired': 'Текст обязателен',
+    'qr.newPage': 'Новая QR-страница',
+    'qr.publicUrlHelp': 'Публичный URL: /q/your-slug',
+    'qr.subtitle': 'Просмотр опубликованных QR-назначений и кнопок действий',
+    'qr.subtitleField': 'Подзаголовок',
+    'qr.title': 'QR-страницы',
+    'qr.titleField': 'Заголовок',
+    'qr.type': 'Тип',
+    'qr.useNoMoreThanTenActions': 'Не больше 10 действий',
+    'qr.value': 'Значение или метаданные',
+    'qr.valuePlaceholder': 'URL, телефон, email или ключ формы',
+    'qr.valueRequired': 'Значение обязательно',
+    'role.companyAdmin': 'Администратор компании',
+    'role.systemAdmin': 'Системный администратор',
+    'user.couldNotCreate': 'Не удалось создать аккаунт',
+    'user.createAccount': 'Создать аккаунт',
+    'user.fullName': 'Полное имя',
+    'user.newAccount': 'Новый аккаунт',
+    'user.temporaryPassword': 'Временный пароль',
+  },
+}
+
+type I18nContextValue = {
+  language: Language
+  languages: typeof languages
+  setLanguage: (language: Language) => void
+  t: (key: string, values?: Record<string, string | number>) => string
+}
+
+const I18nContext = createContext<I18nContextValue | null>(null)
+
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const [language, setLanguageState] = useState<Language>(() => readLanguage())
+
+  function setLanguage(nextLanguage: Language) {
+    setLanguageState(nextLanguage)
+    window.localStorage.setItem(LANGUAGE_KEY, nextLanguage)
+    document.documentElement.lang = nextLanguage
+  }
+
+  const value = useMemo<I18nContextValue>(
+    () => ({
+      language,
+      languages,
+      setLanguage,
+      t: (key, values) => translate(language, key, values),
+    }),
+    [language],
+  )
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
+}
+
+// eslint-disable-next-line react-refresh/only-export-components
+export function useI18n() {
+  const context = useContext(I18nContext)
+  if (!context) {
+    throw new Error('useI18n must be used inside I18nProvider')
+  }
+  return context
+}
+
+function readLanguage(): Language {
+  const stored = window.localStorage.getItem(LANGUAGE_KEY)
+  if (stored === 'en' || stored === 'no' || stored === 'ru') {
+    document.documentElement.lang = stored
+    return stored
+  }
+  const browserLanguage = window.navigator.language.toLowerCase()
+  if (browserLanguage.startsWith('ru')) {
+    document.documentElement.lang = 'ru'
+    return 'ru'
+  }
+  if (browserLanguage.startsWith('nb') || browserLanguage.startsWith('nn') || browserLanguage.startsWith('no')) {
+    document.documentElement.lang = 'no'
+    return 'no'
+  }
+  document.documentElement.lang = 'en'
+  return 'en'
+}
+
+function translate(language: Language, key: string, values?: Record<string, string | number>) {
+  const template = dictionaries[language][key] ?? dictionaries.en[key] ?? key
+  if (!values) {
+    return template
+  }
+  return Object.entries(values).reduce(
+    (text, [name, value]) => text.replaceAll(`{{${name}}}`, String(value)),
+    template,
+  )
+}

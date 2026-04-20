@@ -9,6 +9,11 @@ export default defineConfig({
       '/api': {
         target: 'https://qr-backend-production-bc0c.up.railway.app',
         changeOrigin: true,
+        configure: (proxy) => {
+          proxy.on('proxyReq', (proxyReq) => {
+            proxyReq.removeHeader('origin')
+          })
+        },
       },
     },
   },

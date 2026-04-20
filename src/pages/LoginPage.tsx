@@ -15,7 +15,10 @@ import { useState } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { z } from 'zod'
+import { ApiError } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
+import { LanguageSelect } from '../components/LanguageSelect'
+import { useI18n } from '../i18n/I18nContext'
 
 const schema = z.object({
   email: z.string().email(),
@@ -30,6 +33,7 @@ type LocationState = {
 
 export function LoginPage() {
   const auth = useAuth()
+  const { t } = useI18n()
   const navigate = useNavigate()
   const location = useLocation()
   const [error, setError] = useState<string | null>(null)
@@ -53,7 +57,11 @@ export function LoginPage() {
       await auth.login(values.email, values.password)
       navigate(from, { replace: true })
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Login failed')
+      if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+        setError(t('login.invalidCredentials'))
+        return
+      }
+      setError(err instanceof Error ? err.message : t('login.loginFailed'))
     }
   }
 
@@ -62,12 +70,15 @@ export function LoginPage() {
       <Container maxWidth="xs">
         <Paper variant="outlined" sx={{ p: 4, borderRadius: 2 }}>
           <Stack spacing={3} sx={{ alignItems: 'center' }}>
+            <Box sx={{ alignSelf: 'flex-end' }}>
+              <LanguageSelect compact />
+            </Box>
             <Avatar sx={{ bgcolor: 'primary.main' }}>
               <LockOutlinedIcon />
             </Avatar>
             <Box sx={{ textAlign: 'center' }}>
-              <Typography variant="h1">Sign in</Typography>
-              <Typography color="text.secondary">Manage companies and QR pages</Typography>
+              <Typography variant="h1">{t('login.title')}</Typography>
+              <Typography color="text.secondary">{t('login.subtitle')}</Typography>
             </Box>
             {error && (
               <Alert severity="error" sx={{ width: '100%' }}>
@@ -82,7 +93,7 @@ export function LoginPage() {
                   render={({ field, fieldState }) => (
                     <TextField
                       {...field}
-                      label="Email"
+                      label={t('common.email')}
                       type="email"
                       autoComplete="email"
                       error={Boolean(fieldState.error)}
@@ -97,7 +108,7 @@ export function LoginPage() {
                   render={({ field, fieldState }) => (
                     <TextField
                       {...field}
-                      label="Password"
+                      label={t('common.password')}
                       type="password"
                       autoComplete="current-password"
                       error={Boolean(fieldState.error)}
@@ -107,7 +118,7 @@ export function LoginPage() {
                   )}
                 />
                 <Button type="submit" variant="contained" size="large" disabled={formState.isSubmitting}>
-                  {formState.isSubmitting ? 'Signing in' : 'Sign in'}
+                  {formState.isSubmitting ? t('login.submitting') : t('login.submit')}
                 </Button>
               </Stack>
             </Box>

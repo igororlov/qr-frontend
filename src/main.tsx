@@ -8,15 +8,18 @@ import { router } from './app/router.tsx'
 import { theme } from './app/theme.ts'
 import { queryClient } from './app/queryClient.ts'
 import { AuthProvider } from './auth/AuthContext.tsx'
+import { I18nProvider } from './i18n/I18nContext.tsx'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
       <ThemeProvider theme={theme}>
         <CssBaseline />
-        <AuthProvider>
-          <RouterProvider router={router} />
-        </AuthProvider>
+        <I18nProvider>
+          <AuthProvider>
+            <RouterProvider router={router} />
+          </AuthProvider>
+        </I18nProvider>
       </ThemeProvider>
     </QueryClientProvider>
   </StrictMode>,

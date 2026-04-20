@@ -10,6 +10,24 @@ export type QrAction = {
   clickCount: number
 }
 
+export type QrActionInput = {
+  position: number
+  label: string
+  type: QrActionType
+  value: string
+  active: boolean
+}
+
+export type QrCodeInput = {
+  slug: string
+  title: string
+  subtitle?: string | null
+  label?: string | null
+  logoUrl?: string | null
+  active: boolean
+  actions: QrActionInput[]
+}
+
 export type QrCode = {
   id: string
   companyId: string
