@@ -3,6 +3,7 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import DeleteIcon from '@mui/icons-material/Delete'
+import FileDownloadIcon from '@mui/icons-material/FileDownload'
 import EditIcon from '@mui/icons-material/Edit'
 import LaunchIcon from '@mui/icons-material/Launch'
 import QrCode2Icon from '@mui/icons-material/QrCode2'
@@ -37,7 +38,7 @@ import { useEffect, useState } from 'react'
 import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { z } from 'zod'
-import { listQrCodes, updateQrCode } from '../api/qrApi'
+import { generateQrCodeImage, getQrCodePng, listQrCodes, updateQrCode } from '../api/qrApi'
 import { useI18n } from '../i18n/I18nContext'
 import type { QrActionType, QrCode, QrCodeInput } from '../types/qr'
 
@@ -50,6 +51,9 @@ const qrFormSchema = z.object({
   label: z.string().max(120).optional(),
   logoUrl: z.union([z.string().url('Use a valid URL'), z.literal('')]).optional(),
   active: z.boolean(),
+  foregroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  logoEnabled: z.boolean(),
   actions: z
     .array(
       z.object({
@@ -69,6 +73,7 @@ export function QrCodesPage() {
   const { t } = useI18n()
   const { companyId } = useParams()
   const [editingQr, setEditingQr] = useState<QrCode | null>(null)
+  const [downloadError, setDownloadError] = useState(false)
   const qrCodesQuery = useQuery({
     queryKey: ['qr-codes', companyId],
     queryFn: () => listQrCodes(companyId!),
@@ -92,6 +97,7 @@ export function QrCodesPage() {
 
       {qrCodesQuery.isLoading && <CircularProgress />}
       {qrCodesQuery.isError && <Alert severity="error">{t('qr.couldNotLoad')}</Alert>}
+      {downloadError && <Alert severity="error">{t('qr.couldNotLoad')}</Alert>}
 
       <Grid container spacing={2}>
         {qrCodesQuery.data?.map((qr) => (
@@ -125,6 +131,20 @@ export function QrCodesPage() {
                       {t('action.edit')}
                     </Button>
                     <Button
+                      startIcon={<FileDownloadIcon />}
+                      variant="outlined"
+                      onClick={async () => {
+                        setDownloadError(false)
+                        try {
+                          await downloadQrPng(companyId!, qr)
+                        } catch {
+                          setDownloadError(true)
+                        }
+                      }}
+                    >
+                      {t('qr.downloadPng')}
+                    </Button>
+                    <Button
                       component={RouterLink}
                       to={`/q/${qr.slug}`}
                       target="_blank"
@@ -156,7 +176,7 @@ export function QrCodesPage() {
 function QrEditDialog({ companyId, qr, onClose }: { companyId: string; qr: QrCode | null; onClose: () => void }) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
-  const { control, handleSubmit, reset, formState } = useForm<QrFormValues>({
+  const { control, getValues, handleSubmit, reset, formState } = useForm<QrFormValues>({
     resolver: zodResolver(qrFormSchema),
     defaultValues: emptyQrForm(),
   })
@@ -177,6 +197,19 @@ function QrEditDialog({ companyId, qr, onClose }: { companyId: string; qr: QrCod
       await queryClient.invalidateQueries({ queryKey: ['qr-codes', companyId] })
       await queryClient.invalidateQueries({ queryKey: ['public-qr', updated.slug] })
       onClose()
+    },
+  })
+
+  const generateMutation = useMutation({
+    mutationFn: () =>
+      generateQrCodeImage(companyId, qr!.id, {
+        foregroundColor: getValues('foregroundColor'),
+        backgroundColor: getValues('backgroundColor'),
+        logoEnabled: getValues('logoEnabled'),
+      }),
+    onSuccess: async (updated) => {
+      await queryClient.invalidateQueries({ queryKey: ['qr-codes', companyId] })
+      reset(toFormValues(updated))
     },
   })
 
@@ -283,6 +316,91 @@ function QrEditDialog({ companyId, qr, onClose }: { companyId: string; qr: QrCod
             </Grid>
 
             <Stack spacing={1.5}>
+              <Box
+                sx={{
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 1,
+                  p: 2,
+                }}
+              >
+                <Stack spacing={2}>
+                  <Box>
+                    <Typography variant="h3">{t('qr.imageStyleTitle')}</Typography>
+                    <Typography color="text.secondary">
+                      {t('qr.imageStyleHelp', { url: qr ? `https://qradmin.no/q/${qr.slug}` : '/q/...' })}
+                    </Typography>
+                  </Box>
+                  {generateMutation.isSuccess && <Alert severity="success">{t('qr.imageGenerated')}</Alert>}
+                  {generateMutation.isError && <Alert severity="error">{t('qr.couldNotSave')}</Alert>}
+                  <Grid container spacing={2}>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Controller
+                        name="foregroundColor"
+                        control={control}
+                        render={({ field, fieldState }) => (
+                          <TextField
+                            {...field}
+                            label={t('qr.foregroundColor')}
+                            type="color"
+                            error={Boolean(fieldState.error)}
+                            helperText={fieldState.error?.message}
+                            fullWidth
+                          />
+                        )}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Controller
+                        name="backgroundColor"
+                        control={control}
+                        render={({ field, fieldState }) => (
+                          <TextField
+                            {...field}
+                            label={t('qr.backgroundColor')}
+                            type="color"
+                            error={Boolean(fieldState.error)}
+                            helperText={fieldState.error?.message}
+                            fullWidth
+                          />
+                        )}
+                      />
+                    </Grid>
+                    <Grid size={{ xs: 12, md: 4 }}>
+                      <Controller
+                        name="logoEnabled"
+                        control={control}
+                        render={({ field }) => (
+                          <FormControlLabel
+                            control={<Switch checked={field.value} onChange={(_, checked) => field.onChange(checked)} />}
+                            label={t('qr.includeLogo')}
+                          />
+                        )}
+                      />
+                    </Grid>
+                  </Grid>
+                  <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                    <Button
+                      variant="contained"
+                      startIcon={<QrCode2Icon />}
+                      disabled={!qr || generateMutation.isPending}
+                      onClick={() => generateMutation.mutate()}
+                    >
+                      {t('qr.generateImage')}
+                    </Button>
+                    {qr && (
+                      <Button
+                        variant="outlined"
+                        startIcon={<FileDownloadIcon />}
+                        onClick={() => downloadQrPng(companyId, qr)}
+                      >
+                        {t('qr.downloadPng')}
+                      </Button>
+                    )}
+                  </Stack>
+                </Stack>
+              </Box>
+
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'space-between' }}>
                 <Box>
                   <Typography variant="h3">{t('qr.actionsTitle')}</Typography>
@@ -425,6 +543,9 @@ function toFormValues(qr: QrCode): QrFormValues {
     label: qr.label ?? '',
     logoUrl: qr.logoUrl ?? '',
     active: qr.active,
+    foregroundColor: qr.imageStyle?.foregroundColor ?? '#111111',
+    backgroundColor: qr.imageStyle?.backgroundColor ?? '#ffffff',
+    logoEnabled: qr.imageStyle?.logoEnabled ?? true,
     actions: qr.actions
       .slice()
       .sort((a, b) => a.position - b.position)
@@ -463,6 +584,9 @@ function emptyQrForm(): QrFormValues {
     label: '',
     logoUrl: '',
     active: true,
+    foregroundColor: '#111111',
+    backgroundColor: '#ffffff',
+    logoEnabled: true,
     actions: [defaultAction(() => 'Open link')],
   }
 }
@@ -496,4 +620,16 @@ function actionTypeLabel(type: QrActionType, t: (key: string) => string) {
 function emptyToNull(value?: string) {
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
+}
+
+async function downloadQrPng(companyId: string, qr: QrCode) {
+  const blob = await getQrCodePng(companyId, qr.id)
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `${qr.slug}-qr.png`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  window.URL.revokeObjectURL(url)
 }

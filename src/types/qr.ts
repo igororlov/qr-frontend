@@ -28,6 +28,20 @@ export type QrCodeInput = {
   actions: QrActionInput[]
 }
 
+export type QrImageStyle = {
+  foregroundColor: string
+  backgroundColor: string
+  logoEnabled: boolean
+  imageGenerated: boolean
+  imageGeneratedAt: string | null
+}
+
+export type QrImageStyleInput = {
+  foregroundColor: string
+  backgroundColor: string
+  logoEnabled: boolean
+}
+
 export type QrCode = {
   id: string
   companyId: string
@@ -39,6 +53,7 @@ export type QrCode = {
   logoUrl: string | null
   active: boolean
   scanCount: number
+  imageStyle: QrImageStyle
   actions: QrAction[]
   createdAt: string
   updatedAt: string

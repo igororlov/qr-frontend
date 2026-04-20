@@ -1,5 +1,8 @@
 import { apiRequest } from './client'
-import type { PublicQr, QrCode, QrCodeInput } from '../types/qr'
+import { getToken } from '../auth/authStorage'
+import type { PublicQr, QrCode, QrCodeInput, QrImageStyleInput } from '../types/qr'
+
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 
 export function listQrCodes(companyId: string) {
   return apiRequest<QrCode[]>(`/api/companies/${companyId}/qr-codes`)
@@ -10,6 +13,24 @@ export function updateQrCode(companyId: string, qrCodeId: string, body: QrCodeIn
     method: 'PUT',
     body,
   })
+}
+
+export function generateQrCodeImage(companyId: string, qrCodeId: string, body: QrImageStyleInput) {
+  return apiRequest<QrCode>(`/api/companies/${companyId}/qr-codes/${qrCodeId}/image`, {
+    method: 'POST',
+    body,
+  })
+}
+
+export async function getQrCodePng(companyId: string, qrCodeId: string) {
+  const token = getToken()
+  const response = await fetch(`${API_BASE_URL}/api/companies/${companyId}/qr-codes/${qrCodeId}/png`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+  })
+  if (!response.ok) {
+    throw new Error(`Request failed with ${response.status}`)
+  }
+  return response.blob()
 }
 
 export function getPublicQr(slug: string) {

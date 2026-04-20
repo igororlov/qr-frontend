@@ -4,6 +4,7 @@ import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import PersonAddIcon from '@mui/icons-material/PersonAdd'
 import QrCode2Icon from '@mui/icons-material/QrCode2'
+import UploadFileIcon from '@mui/icons-material/UploadFile'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
@@ -29,11 +30,11 @@ import {
   TextField,
   Typography,
 } from '@mui/material'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ChangeEvent } from 'react'
 import { Controller, useForm } from 'react-hook-form'
 import { Link as RouterLink } from 'react-router-dom'
 import { z } from 'zod'
-import { createCompany, deleteCompany, listCompanies, updateCompany } from '../api/companyApi'
+import { createCompany, deleteCompany, listCompanies, updateCompany, uploadCompanyLogo } from '../api/companyApi'
 import { createUser, listUsers } from '../api/userApi'
 import { useI18n } from '../i18n/I18nContext'
 import type { Company, CompanyInput } from '../types/company'
@@ -185,6 +186,7 @@ function CompanyDialog({
 }) {
   const queryClient = useQueryClient()
   const { t } = useI18n()
+  const [logoUploaded, setLogoUploaded] = useState(false)
   const { control, handleSubmit, reset, formState } = useForm<CompanyFormValues>({
     resolver: zodResolver(companySchema),
     defaultValues: emptyCompanyForm(),
@@ -205,8 +207,26 @@ function CompanyDialog({
     },
   })
 
+  const logoMutation = useMutation({
+    mutationFn: (file: File) => uploadCompanyLogo(company!.id, file),
+    onSuccess: async (updated) => {
+      setLogoUploaded(true)
+      reset(toCompanyForm(updated))
+      await queryClient.invalidateQueries({ queryKey: ['companies'] })
+    },
+  })
+
   async function onSubmit(values: CompanyFormValues) {
     await saveMutation.mutateAsync(values)
+  }
+
+  function onLogoSelected(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    setLogoUploaded(false)
+    if (file && company) {
+      logoMutation.mutate(file)
+    }
   }
 
   return (
@@ -216,6 +236,8 @@ function CompanyDialog({
         <DialogContent dividers>
           <Stack spacing={2}>
             {saveMutation.isError && <Alert severity="error">{t('companies.couldNotSave')}</Alert>}
+            {logoMutation.isError && <Alert severity="error">{t('companies.logoUploadFailed')}</Alert>}
+            {logoUploaded && <Alert severity="success">{t('companies.logoUploaded')}</Alert>}
             <Controller
               name="name"
               control={control}
@@ -255,6 +277,27 @@ function CompanyDialog({
                 />
               )}
             />
+            <Stack spacing={1}>
+              <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
+                <Button
+                  component="label"
+                  variant="outlined"
+                  startIcon={<UploadFileIcon />}
+                  disabled={!company || logoMutation.isPending}
+                >
+                  {t('companies.logoUpload')}
+                  <input type="file" accept="image/png,image/jpeg,image/webp" hidden onChange={onLogoSelected} />
+                </Button>
+                {!company && (
+                  <Typography color="text.secondary" variant="body2" sx={{ alignSelf: 'center' }}>
+                    {t('companies.logoUploadFirstSave')}
+                  </Typography>
+                )}
+              </Stack>
+              <Typography color="text.secondary" variant="body2">
+                {t('companies.logoUploadHelp')}
+              </Typography>
+            </Stack>
             {users.length > 0 && (
               <Controller
                 name="ownerUserId"
