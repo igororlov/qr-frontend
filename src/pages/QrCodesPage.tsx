@@ -38,7 +38,7 @@ import { useEffect, useState } from 'react'
 import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { z } from 'zod'
-import { generateQrCodeImage, getQrCodePng, listQrCodes, updateQrCode } from '../api/qrApi'
+import { createQrCode, generateQrCodeImage, getQrCodePng, listQrCodes, updateQrCode } from '../api/qrApi'
 import { useI18n } from '../i18n/I18nContext'
 import type { QrActionType, QrCode, QrCodeInput } from '../types/qr'
 
@@ -73,6 +73,7 @@ export function QrCodesPage() {
   const { t } = useI18n()
   const { companyId } = useParams()
   const [editingQr, setEditingQr] = useState<QrCode | null>(null)
+  const [creatingQr, setCreatingQr] = useState(false)
   const [downloadError, setDownloadError] = useState(false)
   const qrCodesQuery = useQuery({
     queryKey: ['qr-codes', companyId],
@@ -90,7 +91,7 @@ export function QrCodesPage() {
           <Typography variant="h1">{t('qr.title')}</Typography>
           <Typography color="text.secondary">{t('qr.subtitle')}</Typography>
         </Box>
-        <Button variant="contained" disabled>
+        <Button variant="contained" onClick={() => setCreatingQr(true)}>
           {t('qr.newPage')}
         </Button>
       </Stack>
@@ -166,14 +167,36 @@ export function QrCodesPage() {
         <QrEditDialog
           companyId={companyId}
           qr={editingQr}
+          mode="edit"
           onClose={() => setEditingQr(null)}
+        />
+      )}
+      {companyId && (
+        <QrEditDialog
+          companyId={companyId}
+          qr={null}
+          mode="create"
+          open={creatingQr}
+          onClose={() => setCreatingQr(false)}
         />
       )}
     </Stack>
   )
 }
 
-function QrEditDialog({ companyId, qr, onClose }: { companyId: string; qr: QrCode | null; onClose: () => void }) {
+function QrEditDialog({
+  companyId,
+  qr,
+  mode,
+  open,
+  onClose,
+}: {
+  companyId: string
+  qr: QrCode | null
+  mode: 'create' | 'edit'
+  open?: boolean
+  onClose: () => void
+}) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
   const { control, getValues, handleSubmit, reset, formState } = useForm<QrFormValues>({
@@ -186,13 +209,20 @@ function QrEditDialog({ companyId, qr, onClose }: { companyId: string; qr: QrCod
   })
 
   useEffect(() => {
-    if (qr) {
+    if (mode === 'create' && open) {
+      reset(emptyQrForm())
+      return
+    }
+    if (mode === 'edit' && qr) {
       reset(toFormValues(qr))
     }
-  }, [qr, reset])
+  }, [mode, open, qr, reset])
 
-  const updateMutation = useMutation({
-    mutationFn: (values: QrFormValues) => updateQrCode(companyId, qr!.id, toRequest(values)),
+  const saveMutation = useMutation({
+    mutationFn: (values: QrFormValues) => {
+      const body = toRequest(values)
+      return mode === 'create' ? createQrCode(companyId, body) : updateQrCode(companyId, qr!.id, body)
+    },
     onSuccess: async (updated) => {
       await queryClient.invalidateQueries({ queryKey: ['qr-codes', companyId] })
       await queryClient.invalidateQueries({ queryKey: ['public-qr', updated.slug] })
@@ -214,16 +244,16 @@ function QrEditDialog({ companyId, qr, onClose }: { companyId: string; qr: QrCod
   })
 
   async function onSubmit(values: QrFormValues) {
-    await updateMutation.mutateAsync(values)
+    await saveMutation.mutateAsync(values)
   }
 
   return (
-    <Dialog open={Boolean(qr)} onClose={onClose} maxWidth="md" fullWidth>
-      <DialogTitle>{t('qr.editTitle')}</DialogTitle>
+    <Dialog open={open ?? Boolean(qr)} onClose={onClose} maxWidth="md" fullWidth>
+      <DialogTitle>{mode === 'create' ? t('qr.createTitle') : t('qr.editTitle')}</DialogTitle>
       <Box component="form" onSubmit={handleSubmit(onSubmit)}>
         <DialogContent dividers>
           <Stack spacing={3}>
-            {updateMutation.isError && <Alert severity="error">{t('qr.couldNotSave')}</Alert>}
+            {saveMutation.isError && <Alert severity="error">{t('qr.couldNotSave')}</Alert>}
 
             <Grid container spacing={2}>
               <Grid size={{ xs: 12, md: 6 }}>
@@ -383,7 +413,7 @@ function QrEditDialog({ companyId, qr, onClose }: { companyId: string; qr: QrCod
                     <Button
                       variant="contained"
                       startIcon={<QrCode2Icon />}
-                      disabled={!qr || generateMutation.isPending}
+                      disabled={mode === 'create' || !qr || generateMutation.isPending}
                       onClick={() => generateMutation.mutate()}
                     >
                       {t('qr.generateImage')}
@@ -526,8 +556,8 @@ function QrEditDialog({ companyId, qr, onClose }: { companyId: string; qr: QrCod
         </DialogContent>
         <DialogActions>
           <Button onClick={onClose}>{t('common.cancel')}</Button>
-          <Button type="submit" variant="contained" disabled={formState.isSubmitting || updateMutation.isPending}>
-            {t('action.saveChanges')}
+          <Button type="submit" variant="contained" disabled={formState.isSubmitting || saveMutation.isPending}>
+            {mode === 'create' ? t('action.save') : t('action.saveChanges')}
           </Button>
         </DialogActions>
       </Box>

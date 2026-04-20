@@ -1,11 +1,16 @@
-import { apiRequest } from './client'
+import { API_BASE_URL, apiRequest } from './client'
 import { getToken } from '../auth/authStorage'
 import type { PublicQr, QrCode, QrCodeInput, QrImageStyleInput } from '../types/qr'
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
-
 export function listQrCodes(companyId: string) {
   return apiRequest<QrCode[]>(`/api/companies/${companyId}/qr-codes`)
+}
+
+export function createQrCode(companyId: string, body: QrCodeInput) {
+  return apiRequest<QrCode>(`/api/companies/${companyId}/qr-codes`, {
+    method: 'POST',
+    body,
+  })
 }
 
 export function updateQrCode(companyId: string, qrCodeId: string, body: QrCodeInput) {
