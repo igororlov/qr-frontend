@@ -1,6 +1,7 @@
 import AddIcon from '@mui/icons-material/Add'
 import ArrowBackIcon from '@mui/icons-material/ArrowBack'
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward'
+import ArrowDropDownIcon from '@mui/icons-material/ArrowDropDown'
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import DeleteIcon from '@mui/icons-material/Delete'
 import FileDownloadIcon from '@mui/icons-material/FileDownload'
@@ -14,6 +15,7 @@ import {
   Alert,
   Box,
   Button,
+  ButtonGroup,
   Card,
   CardContent,
   Chip,
@@ -27,6 +29,7 @@ import {
   Grid,
   IconButton,
   InputLabel,
+  Menu,
   MenuItem,
   Select,
   Stack,
@@ -160,34 +163,18 @@ export function QrCodesPage() {
                     <Button startIcon={<EditIcon />} variant="contained" onClick={() => setEditingQr(qr)}>
                       {t('action.edit')}
                     </Button>
-                    <Button
-                      startIcon={<FileDownloadIcon />}
-                      variant="outlined"
-                      onClick={async () => {
+                    <DownloadSplitButton
+                      label={t('qr.downloadPng')}
+                      menuLabel={t('qr.downloadSvg')}
+                      onDownload={async (format) => {
                         setDownloadError(false)
                         try {
-                          await downloadQrAsset(companyId!, qr, 'png')
+                          await downloadQrAsset(companyId!, qr, format)
                         } catch {
                           setDownloadError(true)
                         }
                       }}
-                    >
-                      {t('qr.downloadPng')}
-                    </Button>
-                    <Button
-                      startIcon={<FileDownloadIcon />}
-                      variant="outlined"
-                      onClick={async () => {
-                        setDownloadError(false)
-                        try {
-                          await downloadQrAsset(companyId!, qr, 'svg')
-                        } catch {
-                          setDownloadError(true)
-                        }
-                      }}
-                    >
-                      {t('qr.downloadSvg')}
-                    </Button>
+                    />
                     <Button
                       component={RouterLink}
                       to={`/q/${qr.slug}`}
@@ -519,22 +506,11 @@ function QrEditDialog({
                       {t('qr.generateImage')}
                     </Button>
                     {qr && (
-                      <Button
-                        variant="outlined"
-                        startIcon={<FileDownloadIcon />}
-                        onClick={() => downloadQrAsset(companyId, qr, 'png')}
-                      >
-                        {t('qr.downloadPng')}
-                      </Button>
-                    )}
-                    {qr && (
-                      <Button
-                        variant="outlined"
-                        startIcon={<FileDownloadIcon />}
-                        onClick={() => downloadQrAsset(companyId, qr, 'svg')}
-                      >
-                        {t('qr.downloadSvg')}
-                      </Button>
+                      <DownloadSplitButton
+                        label={t('qr.downloadPng')}
+                        menuLabel={t('qr.downloadSvg')}
+                        onDownload={(format) => downloadQrAsset(companyId, qr, format)}
+                      />
                     )}
                   </Stack>
                   {qr && (
@@ -809,6 +785,53 @@ function emptyQrForm(defaultLogoUrl?: string | null): QrFormValues {
     logoEnabled: true,
     actions: [defaultAction(() => 'Open link')],
   }
+}
+
+function DownloadSplitButton({
+  label,
+  menuLabel,
+  onDownload,
+}: {
+  label: string
+  menuLabel: string
+  onDownload: (format: 'png' | 'svg') => Promise<void> | void
+}) {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null)
+
+  return (
+    <>
+      <ButtonGroup
+        variant="outlined"
+        sx={{
+          '& .MuiButton-root': {
+            whiteSpace: 'nowrap',
+          },
+        }}
+      >
+        <Button startIcon={<FileDownloadIcon />} onClick={() => onDownload('png')}>
+          {label}
+        </Button>
+        <Button
+          aria-label={menuLabel}
+          size="small"
+          onClick={(event) => setAnchorEl(event.currentTarget)}
+          sx={{ minWidth: 40, px: 0.5 }}
+        >
+          <ArrowDropDownIcon />
+        </Button>
+      </ButtonGroup>
+      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
+        <MenuItem
+          onClick={() => {
+            setAnchorEl(null)
+            onDownload('svg')
+          }}
+        >
+          {menuLabel}
+        </MenuItem>
+      </Menu>
+    </>
+  )
 }
 
 function defaultAction(t: (key: string) => string): QrFormValues['actions'][number] {
