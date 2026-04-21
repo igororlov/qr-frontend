@@ -1,4 +1,5 @@
 export type QrActionType = 'LINK' | 'GOOGLE_REVIEW' | 'PHONE' | 'SMS' | 'EMAIL' | 'FORM'
+export type QrFormType = 'contact' | 'feedback' | 'lead'
 
 export type QrAction = {
   id: string

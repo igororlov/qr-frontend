@@ -38,6 +38,7 @@ import { useEffect, useState } from 'react'
 import { Controller, useFieldArray, useForm } from 'react-hook-form'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { z } from 'zod'
+import { listCompanies } from '../api/companyApi'
 import { createQrCode, generateQrCodeImage, getQrCodePng, listQrCodes, updateQrCode } from '../api/qrApi'
 import { useI18n } from '../i18n/I18nContext'
 import type { QrActionType, QrCode, QrCodeInput } from '../types/qr'
@@ -82,6 +83,11 @@ export function QrCodesPage() {
     queryFn: () => listQrCodes(companyId!),
     enabled: Boolean(companyId),
   })
+  const companiesQuery = useQuery({
+    queryKey: ['companies'],
+    queryFn: listCompanies,
+  })
+  const company = companiesQuery.data?.find((item) => item.id === companyId) ?? null
 
   return (
     <Stack spacing={3}>
@@ -179,6 +185,7 @@ export function QrCodesPage() {
       {companyId && (
         <QrEditDialog
           companyId={companyId}
+          defaultLogoUrl={company?.logoUrl ?? null}
           qr={null}
           mode="create"
           open={creatingQr}
@@ -191,6 +198,7 @@ export function QrCodesPage() {
 
 function QrEditDialog({
   companyId,
+  defaultLogoUrl,
   qr,
   mode,
   open,
@@ -199,6 +207,7 @@ function QrEditDialog({
   onClose,
 }: {
   companyId: string
+  defaultLogoUrl?: string | null
   qr: QrCode | null
   mode: 'create' | 'edit'
   open?: boolean
@@ -219,13 +228,13 @@ function QrEditDialog({
 
   useEffect(() => {
     if (mode === 'create' && open) {
-      reset(emptyQrForm())
+      reset(emptyQrForm(defaultLogoUrl))
       return
     }
     if (mode === 'edit' && qr) {
       reset(toFormValues(qr))
     }
-  }, [mode, open, qr, reset])
+  }, [defaultLogoUrl, mode, open, qr, reset])
 
   const saveMutation = useMutation({
     mutationFn: (values: QrFormValues) => {
@@ -667,13 +676,13 @@ function toRequest(values: QrFormValues): QrCodeInput {
   }
 }
 
-function emptyQrForm(): QrFormValues {
+function emptyQrForm(defaultLogoUrl?: string | null): QrFormValues {
   return {
     slug: '',
     title: '',
     subtitle: '',
     label: '',
-    logoUrl: '',
+    logoUrl: defaultLogoUrl ?? '',
     active: true,
     buttonColor: '#187466',
     foregroundColor: '#111111',
