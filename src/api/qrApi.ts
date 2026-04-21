@@ -28,8 +28,16 @@ export function generateQrCodeImage(companyId: string, qrCodeId: string, body: Q
 }
 
 export async function getQrCodePng(companyId: string, qrCodeId: string) {
+  return getQrCodeAsset(`/api/companies/${companyId}/qr-codes/${qrCodeId}/png`)
+}
+
+export async function getQrCodeSvg(companyId: string, qrCodeId: string) {
+  return getQrCodeAsset(`/api/companies/${companyId}/qr-codes/${qrCodeId}/svg`)
+}
+
+async function getQrCodeAsset(path: string) {
   const token = getToken()
-  const response = await fetch(`${API_BASE_URL}/api/companies/${companyId}/qr-codes/${qrCodeId}/png`, {
+  const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: token ? { Authorization: `Bearer ${token}` } : undefined,
   })
   if (!response.ok) {

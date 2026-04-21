@@ -40,7 +40,7 @@ import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { z } from 'zod'
 import { listCompanies } from '../api/companyApi'
-import { createQrCode, generateQrCodeImage, getQrCodePng, listQrCodes, updateQrCode } from '../api/qrApi'
+import { createQrCode, generateQrCodeImage, getQrCodePng, getQrCodeSvg, listQrCodes, updateQrCode } from '../api/qrApi'
 import { useI18n } from '../i18n/I18nContext'
 import type { QrActionType, QrCode, QrCodeInput, QrFormType } from '../types/qr'
 
@@ -165,13 +165,27 @@ export function QrCodesPage() {
                       onClick={async () => {
                         setDownloadError(false)
                         try {
-                          await downloadQrPng(companyId!, qr)
+                          await downloadQrAsset(companyId!, qr, 'png')
                         } catch {
                           setDownloadError(true)
                         }
                       }}
                     >
                       {t('qr.downloadPng')}
+                    </Button>
+                    <Button
+                      startIcon={<FileDownloadIcon />}
+                      variant="outlined"
+                      onClick={async () => {
+                        setDownloadError(false)
+                        try {
+                          await downloadQrAsset(companyId!, qr, 'svg')
+                        } catch {
+                          setDownloadError(true)
+                        }
+                      }}
+                    >
+                      {t('qr.downloadSvg')}
                     </Button>
                     <Button
                       component={RouterLink}
@@ -491,9 +505,18 @@ function QrEditDialog({
                       <Button
                         variant="outlined"
                         startIcon={<FileDownloadIcon />}
-                        onClick={() => downloadQrPng(companyId, qr)}
+                        onClick={() => downloadQrAsset(companyId, qr, 'png')}
                       >
                         {t('qr.downloadPng')}
+                      </Button>
+                    )}
+                    {qr && (
+                      <Button
+                        variant="outlined"
+                        startIcon={<FileDownloadIcon />}
+                        onClick={() => downloadQrAsset(companyId, qr, 'svg')}
+                      >
+                        {t('qr.downloadSvg')}
                       </Button>
                     )}
                   </Stack>
@@ -850,12 +873,12 @@ function emptyToNull(value?: string) {
   return trimmed ? trimmed : null
 }
 
-async function downloadQrPng(companyId: string, qr: QrCode) {
-  const blob = await getQrCodePng(companyId, qr.id)
+async function downloadQrAsset(companyId: string, qr: QrCode, format: 'png' | 'svg') {
+  const blob = format === 'png' ? await getQrCodePng(companyId, qr.id) : await getQrCodeSvg(companyId, qr.id)
   const url = window.URL.createObjectURL(blob)
   const link = document.createElement('a')
   link.href = url
-  link.download = `${qr.slug}-qr.png`
+  link.download = `${qr.slug}-qr.${format}`
   document.body.appendChild(link)
   link.click()
   link.remove()
