@@ -55,6 +55,7 @@ const qrFormSchema = z.object({
   logoUrl: z.union([z.string().url('Use a valid URL'), z.literal('')]).optional(),
   active: z.boolean(),
   buttonColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
+  textColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   foregroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   logoEnabled: z.boolean(),
@@ -426,6 +427,22 @@ function QrEditDialog({
                   )}
                 />
               </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Controller
+                  name="textColor"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <TextField
+                      {...field}
+                      label={t('qr.textColor')}
+                      type="color"
+                      error={Boolean(fieldState.error)}
+                      helperText={fieldState.error?.message}
+                      fullWidth
+                    />
+                  )}
+                />
+              </Grid>
             </Grid>
 
             <Stack spacing={1.5}>
@@ -736,6 +753,7 @@ function toFormValues(qr: QrCode): QrFormValues {
     logoUrl: qr.logoUrl ?? '',
     active: qr.active,
     buttonColor: qr.buttonColor ?? '#187466',
+    textColor: qr.textColor ?? '#1f2a2e',
     foregroundColor: qr.imageStyle?.foregroundColor ?? '#111111',
     backgroundColor: qr.imageStyle?.backgroundColor ?? '#ffffff',
     logoEnabled: qr.imageStyle?.logoEnabled ?? true,
@@ -760,6 +778,7 @@ function toRequest(values: QrFormValues): QrCodeInput {
     logoUrl: emptyToNull(values.logoUrl),
     active: values.active,
     buttonColor: values.buttonColor,
+    textColor: values.textColor,
     imageStyle: {
       foregroundColor: values.foregroundColor,
       backgroundColor: values.backgroundColor,
@@ -784,6 +803,7 @@ function emptyQrForm(defaultLogoUrl?: string | null): QrFormValues {
     logoUrl: defaultLogoUrl ?? '',
     active: true,
     buttonColor: '#187466',
+    textColor: '#1f2a2e',
     foregroundColor: '#111111',
     backgroundColor: '#ffffff',
     logoEnabled: true,

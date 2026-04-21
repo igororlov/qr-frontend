@@ -107,7 +107,7 @@ export function PublicQrPage() {
 
   return (
     <PublicShell>
-      <Stack spacing={3}>
+      <Stack spacing={3} sx={{ color: qr.textColor }}>
         <Stack spacing={2} sx={{ alignItems: 'center', textAlign: 'center' }}>
           <Avatar
             src={qr.logoUrl ?? qr.companyLogoUrl ?? undefined}
@@ -116,8 +116,8 @@ export function PublicQrPage() {
             {qr.companyName.slice(0, 1)}
           </Avatar>
           <Box>
-            <Typography variant="h1">{qr.title}</Typography>
-            {qr.subtitle && <Typography color="text.secondary">{qr.subtitle}</Typography>}
+            <Typography variant="h1" sx={{ color: qr.textColor }}>{qr.title}</Typography>
+            {qr.subtitle && <Typography sx={{ color: qr.textColor, opacity: 0.76 }}>{qr.subtitle}</Typography>}
           </Box>
         </Stack>
 
@@ -135,6 +135,7 @@ export function PublicQrPage() {
                 justifyContent: 'flex-start',
                 minHeight: 54,
                 bgcolor: qr.buttonColor,
+                color: '#ffffff',
                 '&:hover': { bgcolor: qr.buttonColor },
               }}
             >
@@ -148,7 +149,7 @@ export function PublicQrPage() {
             <Divider />
             <Box component="form" onSubmit={handleSubmit(onSubmit)}>
               <Stack spacing={2}>
-                <Typography variant="h3">{formAction.label}</Typography>
+                <Typography variant="h3" sx={{ color: qr.textColor }}>{formAction.label}</Typography>
                 {formMutation.isSuccess && <Alert severity="success">{t('public.sent')}</Alert>}
                 {formMutation.isError && <Alert severity="error">{t('public.couldNotSend')}</Alert>}
                 <Controller
@@ -198,6 +199,7 @@ export function PublicQrPage() {
                   disabled={formState.isSubmitting || formMutation.isPending}
                   sx={{
                     bgcolor: qr.buttonColor,
+                    color: '#ffffff',
                     '&:hover': { bgcolor: qr.buttonColor },
                   }}
                 >
@@ -208,7 +210,7 @@ export function PublicQrPage() {
           </>
         )}
 
-        <Typography color="text.secondary" variant="body2" sx={{ textAlign: 'center' }}>
+        <Typography variant="body2" sx={{ textAlign: 'center', color: qr.textColor, opacity: 0.7 }}>
           {qr.companyName}
         </Typography>
       </Stack>

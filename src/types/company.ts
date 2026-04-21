@@ -5,6 +5,7 @@ export type Company = {
   logoUrl: string | null
   active: boolean
   ownerUserId: string
+  ownerFullName: string
   ownerEmail: string
   createdAt: string
   updatedAt: string

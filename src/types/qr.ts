@@ -27,6 +27,7 @@ export type QrCodeInput = {
   logoUrl?: string | null
   active: boolean
   buttonColor: string
+  textColor: string
   imageStyle: QrImageStyleInput
   actions: QrActionInput[]
 }
@@ -55,6 +56,7 @@ export type QrCode = {
   label: string | null
   logoUrl: string | null
   buttonColor: string
+  textColor: string
   active: boolean
   scanCount: number
   imageStyle: QrImageStyle
@@ -82,5 +84,6 @@ export type PublicQr = {
   label: string | null
   logoUrl: string | null
   buttonColor: string
+  textColor: string
   actions: PublicQrAction[]
 }

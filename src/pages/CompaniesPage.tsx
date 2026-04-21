@@ -1,5 +1,4 @@
 import AddIcon from '@mui/icons-material/Add'
-import BusinessIcon from '@mui/icons-material/Business'
 import DeleteIcon from '@mui/icons-material/Delete'
 import EditIcon from '@mui/icons-material/Edit'
 import PersonAddIcon from '@mui/icons-material/PersonAdd'
@@ -9,6 +8,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   Alert,
+  Avatar,
   Box,
   Button,
   Card,
@@ -111,14 +111,22 @@ export function CompaniesPage() {
               <CardContent>
                 <Stack spacing={2}>
                   <Stack direction="row" spacing={1.5} sx={{ alignItems: 'center' }}>
-                    <BusinessIcon color="primary" />
+                    <Avatar
+                      src={company.logoUrl ?? undefined}
+                      variant="rounded"
+                      sx={{ width: 42, height: 42, bgcolor: 'primary.main', borderRadius: 2, fontWeight: 700 }}
+                    >
+                      {company.name.slice(0, 1)}
+                    </Avatar>
                     <Box sx={{ flexGrow: 1, minWidth: 0 }}>
                       <Typography variant="h3">{company.name}</Typography>
                       <Typography color="text.secondary">/{company.slug}</Typography>
                     </Box>
                     <Chip label={company.active ? t('common.active') : t('common.inactive')} color={company.active ? 'success' : 'default'} />
                   </Stack>
-                  <Typography color="text.secondary">{t('companies.ownerPrefix', { email: company.ownerEmail })}</Typography>
+                  <Typography color="text.secondary">
+                    {t('companies.ownerPrefix', { owner: formatUserLabel(company.ownerFullName, company.ownerEmail) })}
+                  </Typography>
                   <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
                     <QrCode2Icon fontSize="small" color="action" />
                     <Typography color="text.secondary">{t('companies.openQrPages')}</Typography>
@@ -181,7 +189,7 @@ function CompanyDialog({
   open: boolean
   mode: 'create' | 'edit'
   company: Company | null
-  users: Array<{ id: string; email: string }>
+  users: Array<{ id: string; email: string; fullName: string }>
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
@@ -308,7 +316,7 @@ function CompanyDialog({
                     <Select {...field} labelId="company-owner-label" label={t('common.owner')}>
                       {users.map((user) => (
                         <MenuItem key={user.id} value={user.id}>
-                          {user.email}
+                          {formatUserLabel(user.fullName, user.email)}
                         </MenuItem>
                       ))}
                     </Select>
@@ -517,4 +525,8 @@ function toUserRequest(values: UserFormValues): UserCreateInput {
 function emptyToNull(value?: string) {
   const trimmed = value?.trim()
   return trimmed ? trimmed : null
+}
+
+function formatUserLabel(fullName: string, email: string) {
+  return fullName?.trim() ? `${fullName} · ${email}` : email
 }
