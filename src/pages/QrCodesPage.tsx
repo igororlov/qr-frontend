@@ -51,6 +51,7 @@ const qrFormSchema = z.object({
   label: z.string().max(120).optional(),
   logoUrl: z.union([z.string().url('Use a valid URL'), z.literal('')]).optional(),
   active: z.boolean(),
+  buttonColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   foregroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   backgroundColor: z.string().regex(/^#[0-9a-fA-F]{6}$/),
   logoEnabled: z.boolean(),
@@ -207,7 +208,7 @@ function QrEditDialog({
 }) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
-  const { control, getValues, handleSubmit, reset, formState } = useForm<QrFormValues>({
+  const { control, getValues, handleSubmit, reset, trigger, formState } = useForm<QrFormValues>({
     resolver: zodResolver(qrFormSchema),
     defaultValues: emptyQrForm(),
   })
@@ -239,12 +240,15 @@ function QrEditDialog({
   })
 
   const generateMutation = useMutation({
-    mutationFn: () =>
-      generateQrCodeImage(companyId, qr!.id, {
-        foregroundColor: getValues('foregroundColor'),
-        backgroundColor: getValues('backgroundColor'),
-        logoEnabled: getValues('logoEnabled'),
-      }),
+    mutationFn: async () => {
+      const values = getValues()
+      const updated = await updateQrCode(companyId, qr!.id, toRequest(values))
+      return generateQrCodeImage(companyId, qr!.id, {
+        foregroundColor: updated.imageStyle.foregroundColor,
+        backgroundColor: updated.imageStyle.backgroundColor,
+        logoEnabled: updated.imageStyle.logoEnabled,
+      })
+    },
     onSuccess: async (updated) => {
       await queryClient.invalidateQueries({ queryKey: ['qr-codes', companyId] })
       reset(toFormValues(updated))
@@ -254,6 +258,14 @@ function QrEditDialog({
 
   async function onSubmit(values: QrFormValues) {
     await saveMutation.mutateAsync(values)
+  }
+
+  async function onGenerate() {
+    const valid = await trigger()
+    if (!valid || mode === 'create' || !qr) {
+      return
+    }
+    await generateMutation.mutateAsync()
   }
 
   return (
@@ -352,6 +364,22 @@ function QrEditDialog({
                   )}
                 />
               </Grid>
+              <Grid size={{ xs: 12, md: 6 }}>
+                <Controller
+                  name="buttonColor"
+                  control={control}
+                  render={({ field, fieldState }) => (
+                    <TextField
+                      {...field}
+                      label={t('qr.buttonColor')}
+                      type="color"
+                      error={Boolean(fieldState.error)}
+                      helperText={fieldState.error?.message}
+                      fullWidth
+                    />
+                  )}
+                />
+              </Grid>
             </Grid>
 
             <Stack spacing={1.5}>
@@ -423,7 +451,7 @@ function QrEditDialog({
                       variant="contained"
                       startIcon={<QrCode2Icon />}
                       disabled={mode === 'create' || !qr || generateMutation.isPending}
-                      onClick={() => generateMutation.mutate()}
+                      onClick={onGenerate}
                     >
                       {t('qr.generateImage')}
                     </Button>
@@ -529,7 +557,16 @@ function QrEditDialog({
                         />
                       </Grid>
                       <Grid size={{ xs: 12, md: 2 }}>
-                        <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center', justifyContent: 'flex-end' }}>
+                        <Stack
+                          direction="row"
+                          spacing={0.5}
+                          sx={{
+                            alignItems: 'center',
+                            justifyContent: 'flex-end',
+                            minHeight: 56,
+                            pt: { xs: 0, md: 0.5 },
+                          }}
+                        >
                           <Controller
                             name={`actions.${index}.active`}
                             control={control}
@@ -590,6 +627,7 @@ function toFormValues(qr: QrCode): QrFormValues {
     label: qr.label ?? '',
     logoUrl: qr.logoUrl ?? '',
     active: qr.active,
+    buttonColor: qr.buttonColor ?? '#187466',
     foregroundColor: qr.imageStyle?.foregroundColor ?? '#111111',
     backgroundColor: qr.imageStyle?.backgroundColor ?? '#ffffff',
     logoEnabled: qr.imageStyle?.logoEnabled ?? true,
@@ -613,6 +651,7 @@ function toRequest(values: QrFormValues): QrCodeInput {
     label: emptyToNull(values.label),
     logoUrl: emptyToNull(values.logoUrl),
     active: values.active,
+    buttonColor: values.buttonColor,
     imageStyle: {
       foregroundColor: values.foregroundColor,
       backgroundColor: values.backgroundColor,
@@ -636,6 +675,7 @@ function emptyQrForm(): QrFormValues {
     label: '',
     logoUrl: '',
     active: true,
+    buttonColor: '#187466',
     foregroundColor: '#111111',
     backgroundColor: '#ffffff',
     logoEnabled: true,

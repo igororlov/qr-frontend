@@ -24,7 +24,6 @@ import { useParams } from 'react-router-dom'
 import { z } from 'zod'
 import type { ReactNode } from 'react'
 import { getPublicQr, submitPublicForm, trackPublicAction } from '../api/qrApi'
-import { LanguageSelect } from '../components/LanguageSelect'
 import { useI18n } from '../i18n/I18nContext'
 import type { PublicQrAction, QrActionType } from '../types/qr'
 
@@ -132,7 +131,12 @@ export function PublicQrPage() {
               color="primary"
               startIcon={actionIcon(action.type)}
               onClick={() => onActionClick(action)}
-              sx={{ justifyContent: 'flex-start', minHeight: 54 }}
+              sx={{
+                justifyContent: 'flex-start',
+                minHeight: 54,
+                bgcolor: qr.buttonColor,
+                '&:hover': { bgcolor: qr.buttonColor },
+              }}
             >
               {action.label}
             </Button>
@@ -192,6 +196,10 @@ export function PublicQrPage() {
                   size="large"
                   startIcon={<SendIcon />}
                   disabled={formState.isSubmitting || formMutation.isPending}
+                  sx={{
+                    bgcolor: qr.buttonColor,
+                    '&:hover': { bgcolor: qr.buttonColor },
+                  }}
                 >
                   {t('public.send')}
                 </Button>
@@ -213,12 +221,7 @@ function PublicShell({ children }: { children: ReactNode }) {
     <Box sx={{ minHeight: '100vh', bgcolor: 'background.default', py: { xs: 2, sm: 5 } }}>
       <Container maxWidth="xs">
         <Paper variant="outlined" sx={{ p: { xs: 2.5, sm: 3 }, borderRadius: 2 }}>
-          <Stack spacing={2}>
-            <Box sx={{ alignSelf: 'flex-end' }}>
-              <LanguageSelect compact />
-            </Box>
-            {children}
-          </Stack>
+          {children}
         </Paper>
       </Container>
     </Box>
