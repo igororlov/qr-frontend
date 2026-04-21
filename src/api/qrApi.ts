@@ -38,6 +38,16 @@ export async function getQrCodePng(companyId: string, qrCodeId: string) {
   return response.blob()
 }
 
+export function qrCodePngUrl(companyId: string, qrCodeId: string, version?: string | number) {
+  const params = version === undefined ? '' : `?v=${encodeURIComponent(String(version))}`
+  return `${API_BASE_URL}/api/companies/${companyId}/qr-codes/${qrCodeId}/png${params}`
+}
+
+export function publicQrCodePngUrl(slug: string, version?: string | number) {
+  const params = version === undefined ? '' : `?v=${encodeURIComponent(String(version))}`
+  return `${API_BASE_URL}/api/public/q/${slug}/png${params}`
+}
+
 export function getPublicQr(slug: string) {
   return apiRequest<PublicQr>(`/api/public/q/${slug}`, { auth: false })
 }

@@ -25,6 +25,7 @@ export type QrCodeInput = {
   label?: string | null
   logoUrl?: string | null
   active: boolean
+  imageStyle: QrImageStyleInput
   actions: QrActionInput[]
 }
 

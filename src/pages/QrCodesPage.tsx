@@ -75,6 +75,7 @@ export function QrCodesPage() {
   const [editingQr, setEditingQr] = useState<QrCode | null>(null)
   const [creatingQr, setCreatingQr] = useState(false)
   const [downloadError, setDownloadError] = useState(false)
+  const [previewVersions, setPreviewVersions] = useState<Record<string, number>>({})
   const qrCodesQuery = useQuery({
     queryKey: ['qr-codes', companyId],
     queryFn: () => listQrCodes(companyId!),
@@ -118,6 +119,7 @@ export function QrCodesPage() {
                   <Typography color="text.secondary">
                     {t('qr.actionsCount', { actions: qr.actions.length, scans: qr.scanCount })}
                   </Typography>
+                  <QrPreview companyId={companyId!} qr={qr} version={previewVersions[qr.id]} alt={t('qr.previewAlt')} />
                   <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', rowGap: 1 }}>
                     {qr.actions.map((action) => (
                       <Chip
@@ -168,6 +170,8 @@ export function QrCodesPage() {
           companyId={companyId}
           qr={editingQr}
           mode="edit"
+          previewVersion={editingQr ? previewVersions[editingQr.id] : undefined}
+          onGenerated={(qrId) => setPreviewVersions((versions) => ({ ...versions, [qrId]: Date.now() }))}
           onClose={() => setEditingQr(null)}
         />
       )}
@@ -189,12 +193,16 @@ function QrEditDialog({
   qr,
   mode,
   open,
+  previewVersion,
+  onGenerated,
   onClose,
 }: {
   companyId: string
   qr: QrCode | null
   mode: 'create' | 'edit'
   open?: boolean
+  previewVersion?: number
+  onGenerated?: (qrId: string) => void
   onClose: () => void
 }) {
   const { t } = useI18n()
@@ -240,6 +248,7 @@ function QrEditDialog({
     onSuccess: async (updated) => {
       await queryClient.invalidateQueries({ queryKey: ['qr-codes', companyId] })
       reset(toFormValues(updated))
+      onGenerated?.(updated.id)
     },
   })
 
@@ -428,6 +437,14 @@ function QrEditDialog({
                       </Button>
                     )}
                   </Stack>
+                  {qr && (
+                    <QrPreview
+                      companyId={companyId}
+                      qr={qr}
+                      version={previewVersion}
+                      alt={t('qr.previewAlt')}
+                    />
+                  )}
                 </Stack>
               </Box>
 
@@ -596,6 +613,11 @@ function toRequest(values: QrFormValues): QrCodeInput {
     label: emptyToNull(values.label),
     logoUrl: emptyToNull(values.logoUrl),
     active: values.active,
+    imageStyle: {
+      foregroundColor: values.foregroundColor,
+      backgroundColor: values.backgroundColor,
+      logoEnabled: values.logoEnabled,
+    },
     actions: values.actions.map((action, index) => ({
       position: index + 1,
       label: action.label.trim(),
@@ -662,4 +684,63 @@ async function downloadQrPng(companyId: string, qr: QrCode) {
   link.click()
   link.remove()
   window.URL.revokeObjectURL(url)
+}
+
+function QrPreview({ companyId, qr, version, alt }: { companyId: string; qr: QrCode; version?: number; alt: string }) {
+  const [src, setSrc] = useState<string | null>(null)
+
+  useEffect(() => {
+    let objectUrl: string | null = null
+    let cancelled = false
+
+    getQrCodePng(companyId, qr.id)
+      .then((blob) => {
+        if (cancelled) {
+          return
+        }
+        objectUrl = window.URL.createObjectURL(blob)
+        setSrc(objectUrl)
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setSrc(null)
+        }
+      })
+
+    return () => {
+      cancelled = true
+      if (objectUrl) {
+        window.URL.revokeObjectURL(objectUrl)
+      }
+    }
+  }, [companyId, qr.id, qr.imageStyle?.imageGeneratedAt, qr.updatedAt, version])
+
+  return (
+    <Box
+      sx={{
+        border: '1px solid',
+        borderColor: 'divider',
+        borderRadius: 1,
+        display: 'flex',
+        justifyContent: 'center',
+        p: 1.5,
+      }}
+    >
+      {src ? (
+        <Box
+          component="img"
+          src={src}
+          alt={alt}
+          sx={{
+            bgcolor: 'background.paper',
+            borderRadius: 1,
+            maxWidth: 220,
+            width: '100%',
+          }}
+        />
+      ) : (
+        <CircularProgress size={28} />
+      )}
+    </Box>
+  )
 }
