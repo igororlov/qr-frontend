@@ -5,6 +5,7 @@ import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward'
 import DeleteIcon from '@mui/icons-material/Delete'
 import FileDownloadIcon from '@mui/icons-material/FileDownload'
 import EditIcon from '@mui/icons-material/Edit'
+import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined'
 import LaunchIcon from '@mui/icons-material/Launch'
 import QrCode2Icon from '@mui/icons-material/QrCode2'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -35,15 +36,16 @@ import {
   Typography,
 } from '@mui/material'
 import { useEffect, useState } from 'react'
-import { Controller, useFieldArray, useForm } from 'react-hook-form'
+import { Controller, useFieldArray, useForm, useWatch } from 'react-hook-form'
 import { Link as RouterLink, useParams } from 'react-router-dom'
 import { z } from 'zod'
 import { listCompanies } from '../api/companyApi'
 import { createQrCode, generateQrCodeImage, getQrCodePng, listQrCodes, updateQrCode } from '../api/qrApi'
 import { useI18n } from '../i18n/I18nContext'
-import type { QrActionType, QrCode, QrCodeInput } from '../types/qr'
+import type { QrActionType, QrCode, QrCodeInput, QrFormType } from '../types/qr'
 
 const actionTypes = ['LINK', 'GOOGLE_REVIEW', 'PHONE', 'SMS', 'EMAIL', 'FORM'] as const
+const formTypes = ['contact', 'feedback', 'lead'] as const satisfies ReadonlyArray<QrFormType>
 
 const qrFormSchema = z.object({
   slug: z.string().regex(/^[a-z0-9-]{3,120}$/, 'Use 3-120 lowercase letters, numbers, or hyphens'),
@@ -61,8 +63,25 @@ const qrFormSchema = z.object({
       z.object({
         label: z.string().min(1, 'Label is required').max(120),
         type: z.enum(actionTypes),
-        value: z.string().min(1, 'Value is required').max(2000),
+        value: z.string().max(2000),
         active: z.boolean(),
+      }).superRefine((action, ctx) => {
+        if (!action.value.trim()) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['value'],
+            message: 'Value is required',
+          })
+          return
+        }
+
+        if (action.type === 'FORM' && !isFormType(action.value)) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            path: ['value'],
+            message: 'Use contact, feedback, or lead',
+          })
+        }
       }),
     )
     .min(1, 'Add at least one action')
@@ -217,9 +236,13 @@ function QrEditDialog({
 }) {
   const { t } = useI18n()
   const queryClient = useQueryClient()
-  const { control, getValues, handleSubmit, reset, trigger, formState } = useForm<QrFormValues>({
+  const { control, getValues, handleSubmit, reset, setValue, trigger, formState } = useForm<QrFormValues>({
     resolver: zodResolver(qrFormSchema),
     defaultValues: emptyQrForm(),
+  })
+  const watchedActions = useWatch({
+    control,
+    name: 'actions',
   })
   const { fields, append, remove, move } = useFieldArray({
     control,
@@ -487,7 +510,14 @@ function QrEditDialog({
 
               <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1} sx={{ justifyContent: 'space-between' }}>
                 <Box>
-                  <Typography variant="h3">{t('qr.actionsTitle')}</Typography>
+                  <Stack direction="row" spacing={0.5} sx={{ alignItems: 'center' }}>
+                    <Typography variant="h3">{t('qr.actionsTitle')}</Typography>
+                    <Tooltip title={t('qr.actionFormatInfo')}>
+                      <IconButton size="small" sx={{ p: 0.25 }}>
+                        <InfoOutlinedIcon fontSize="small" />
+                      </IconButton>
+                    </Tooltip>
+                  </Stack>
                   <Typography color="text.secondary">{t('qr.actionsHelp')}</Typography>
                 </Box>
                 <Button
@@ -505,16 +535,19 @@ function QrEditDialog({
               )}
 
               <Stack spacing={1.5}>
-                {fields.map((field, index) => (
-                  <Box
-                    key={field.id}
-                    sx={{
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      borderRadius: 1,
-                      p: 2,
-                    }}
-                  >
+                {fields.map((field, index) => {
+                  const currentType = watchedActions[index]?.type ?? field.type
+
+                  return (
+                    <Box
+                      key={field.id}
+                      sx={{
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        borderRadius: 1,
+                        p: 2,
+                      }}
+                    >
                     <Grid container spacing={2} sx={{ alignItems: 'center' }}>
                       <Grid size={{ xs: 12, md: 3 }}>
                         <Controller
@@ -538,7 +571,27 @@ function QrEditDialog({
                           render={({ field }) => (
                             <FormControl fullWidth>
                               <InputLabel id={`action-type-${index}`}>{t('qr.type')}</InputLabel>
-                              <Select {...field} labelId={`action-type-${index}`} label={t('qr.type')}>
+                              <Select
+                                {...field}
+                                labelId={`action-type-${index}`}
+                                label={t('qr.type')}
+                                onChange={(event) => {
+                                  const nextType = event.target.value as QrActionType
+                                  field.onChange(nextType)
+                                  if (nextType === 'FORM' && !isFormType(getValues(`actions.${index}.value`))) {
+                                    setValue(`actions.${index}.value`, 'contact', {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    })
+                                  }
+                                  if (nextType !== 'FORM' && isFormType(getValues(`actions.${index}.value`))) {
+                                    setValue(`actions.${index}.value`, '', {
+                                      shouldDirty: true,
+                                      shouldValidate: true,
+                                    })
+                                  }
+                                }}
+                              >
                                 {actionTypes.map((type) => (
                                   <MenuItem key={type} value={type}>
                                     {actionTypeLabel(type, t)}
@@ -550,20 +603,42 @@ function QrEditDialog({
                         />
                       </Grid>
                       <Grid size={{ xs: 12, md: 4 }}>
-                        <Controller
-                          name={`actions.${index}.value`}
-                          control={control}
-                          render={({ field, fieldState }) => (
-                            <TextField
-                              {...field}
-                              label={t('qr.value')}
-                              placeholder={t('qr.valuePlaceholder')}
-                              error={Boolean(fieldState.error)}
-                              helperText={fieldState.error?.message ?? t('qr.formKeyHelp')}
-                              fullWidth
-                            />
-                          )}
-                        />
+                        {currentType === 'FORM' ? (
+                          <Controller
+                            name={`actions.${index}.value`}
+                            control={control}
+                            render={({ field, fieldState }) => (
+                              <FormControl fullWidth error={Boolean(fieldState.error)}>
+                                <InputLabel id={`action-form-type-${index}`}>{t('qr.formType')}</InputLabel>
+                                <Select {...field} labelId={`action-form-type-${index}`} label={t('qr.formType')}>
+                                  {formTypes.map((formType) => (
+                                    <MenuItem key={formType} value={formType}>
+                                      {formTypeLabel(formType, t)}
+                                    </MenuItem>
+                                  ))}
+                                </Select>
+                                <Typography variant="caption" color={fieldState.error ? 'error' : 'text.secondary'} sx={{ mt: 0.75, ml: 1.75 }}>
+                                  {fieldState.error?.message ?? t('qr.formTypeHelp')}
+                                </Typography>
+                              </FormControl>
+                            )}
+                          />
+                        ) : (
+                          <Controller
+                            name={`actions.${index}.value`}
+                            control={control}
+                            render={({ field, fieldState }) => (
+                              <TextField
+                                {...field}
+                                label={t('qr.value')}
+                                placeholder={valuePlaceholderForType(currentType, t)}
+                                error={Boolean(fieldState.error)}
+                                helperText={fieldState.error?.message ?? valueHelpForType(currentType, t)}
+                                fullWidth
+                              />
+                            )}
+                          />
+                        )}
                       </Grid>
                       <Grid size={{ xs: 12, md: 2 }}>
                         <Stack
@@ -611,8 +686,9 @@ function QrEditDialog({
                         </Stack>
                       </Grid>
                     </Grid>
-                  </Box>
-                ))}
+                    </Box>
+                  )
+                })}
               </Stack>
             </Stack>
           </Stack>
@@ -646,7 +722,7 @@ function toFormValues(qr: QrCode): QrFormValues {
       .map((action) => ({
         label: action.label,
         type: action.type,
-        value: action.value,
+        value: action.type === 'FORM' ? normalizeFormTypeValue(action.value) : action.value,
         active: action.active,
       })),
   }
@@ -715,6 +791,57 @@ function actionTypeLabel(type: QrActionType, t: (key: string) => string) {
       return t('actionType.email')
     case 'FORM':
       return t('actionType.form')
+  }
+}
+
+function formTypeLabel(type: QrFormType, t: (key: string) => string) {
+  switch (type) {
+    case 'contact':
+      return t('formType.contact')
+    case 'feedback':
+      return t('formType.feedback')
+    case 'lead':
+      return t('formType.lead')
+  }
+}
+
+function isFormType(value: string): value is QrFormType {
+  return formTypes.includes(value.trim().toLowerCase() as QrFormType)
+}
+
+function normalizeFormTypeValue(value: string) {
+  return isFormType(value) ? value.trim().toLowerCase() : 'contact'
+}
+
+function valuePlaceholderForType(type: QrActionType, t: (key: string) => string) {
+  switch (type) {
+    case 'PHONE':
+      return '+34123456789'
+    case 'SMS':
+      return '+34123456789'
+    case 'EMAIL':
+      return 'hello@example.com'
+    case 'GOOGLE_REVIEW':
+    case 'LINK':
+      return 'https://example.com'
+    case 'FORM':
+      return t('qr.formType')
+  }
+}
+
+function valueHelpForType(type: QrActionType, t: (key: string) => string) {
+  switch (type) {
+    case 'PHONE':
+      return t('qr.phoneHelp')
+    case 'SMS':
+      return t('qr.smsHelp')
+    case 'EMAIL':
+      return t('qr.emailHelp')
+    case 'GOOGLE_REVIEW':
+    case 'LINK':
+      return t('qr.urlHelp')
+    case 'FORM':
+      return t('qr.formTypeHelp')
   }
 }
 
