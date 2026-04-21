@@ -111,7 +111,7 @@ export function PublicQrPage() {
         <Stack spacing={2} sx={{ alignItems: 'center', textAlign: 'center' }}>
           <Avatar
             src={qr.logoUrl ?? qr.companyLogoUrl ?? undefined}
-            sx={{ width: 76, height: 76, bgcolor: 'primary.main', fontWeight: 800 }}
+            sx={{ width: 76, height: 76, bgcolor: qr.buttonColor, color: '#ffffff', fontWeight: 800 }}
           >
             {qr.companyName.slice(0, 1)}
           </Avatar>
